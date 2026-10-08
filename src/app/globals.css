@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-night: #0d0b09;
+  --color-umber: #17130f;
+  --color-ash: #221d17;
+  --color-parchment: #ece4d4;
+  --color-stone: #a39885;
+  --color-dust: #6f665a;
+  --color-gold: #c9a96e;
+  --color-gold-bright: #e2c58c;
+  --color-ember: #d08a5c;
+
+  --font-display: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
+  --font-serif: var(--font-garamond), "EB Garamond", Georgia, serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-night);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgb(201 169 110 / 0.10), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 110%, rgb(208 138 92 / 0.06), transparent 70%);
+  background-attachment: fixed;
+  color: var(--color-parchment);
+}
+
+::selection {
+  background: rgb(201 169 110 / 0.35);
+  color: var(--color-parchment);
+}
+
+/* Thin gold rule with a centred diamond, used as an ornamental divider. */
+.ornament {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-gold);
+}
+.ornament::before,
+.ornament::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgb(201 169 110 / 0.45), transparent);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise 0.6s ease-out both;
+}
+
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animate-flicker {
+  animation: flicker 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-flicker {
+    animation: none;
+  }
+}
