@@ -44,3 +44,6 @@ next-env.d.ts
 # personal material kept in library/ but not versioned
 /library/TRATADOTEMPO.mp3
 /library/youtube-transcript-GkbMokqvQio-en.txt
+/library/*.png
+/library/*.zip
+/image.png
