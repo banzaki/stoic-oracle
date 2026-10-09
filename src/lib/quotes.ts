@@ -1,9 +1,12 @@
 /**
- * Splits a philosopher's reply into renderable segments and checks every
- * quotation against the verbatim library passages it was given.
+ * Splits a philosopher's reply into renderable segments and checks quotations
+ * against the verbatim library passages.
  *
- * A quotation counts as authentic only if its words appear, in order, inside
- * one of the passages. Anything else is shown as unverified paraphrase.
+ * A quotation followed by a citation, as in `"..." [ench-5]`, claims to be the
+ * philosopher's recorded words: it is shown as authentic only if its words appear,
+ * in order, inside one of the passages, and flagged as unverified otherwise.
+ * Other text in quotation marks (a word, the visitor's own phrase) is ordinary
+ * prose unless it happens to match a passage word for word.
  */
 
 export type Segment =
@@ -11,9 +14,14 @@ export type Segment =
   | { kind: "citation"; id: string }
   | { kind: "quote"; text: string; verifiedIn: string | null };
 
-const CITATION = /\[((?:ench|disc|gs|frag)-[\d.]+(?:\s*,\s*(?:ench|disc|gs|frag)-[\d.]+)*)\]/g;
-// Straight or curly double quotes, at least a few words long.
+// Passage id prefixes of the three corpora (see scripts/build-corpus.ts).
+const ID = String.raw`(?:ench|disc|gs|frag|med|ep|dial|clem|ben)-\d+(?:\.\d+)*`;
+const CITATION = new RegExp(String.raw`\[(${ID}(?:\s*[,;]\s*${ID})*)\]`, "g");
+// Straight or curly double quotes, at least a few characters long.
 const QUOTE = /[“"]([^“”"\n]{12,}?)[”"]/g;
+// A quotation counts as attributed when a citation follows right after it.
+const ATTRIBUTED = new RegExp(String.raw`^[\s,.;:!?—–-]{0,3}\[${ID}`);
+const HAS_CITATION = new RegExp(String.raw`\[${ID}`);
 
 export function normalizeForMatch(text: string): string {
   return text
@@ -56,22 +64,41 @@ export function segmentReply(
 
   const pushText = (text: string) => {
     if (!text) return;
-    let last = 0;
-    for (const m of text.matchAll(QUOTE)) {
-      if (m.index > last) segments.push({ kind: "text", text: text.slice(last, m.index) });
-      segments.push({ kind: "quote", text: m[1], verifiedIn: findQuoteSource(m[1], passages) });
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) segments.push({ kind: "text", text: text.slice(last) });
+    const last = segments.at(-1);
+    if (last?.kind === "text") last.text += text;
+    else segments.push({ kind: "text", text });
   };
 
-  let last = 0;
-  for (const m of reply.matchAll(CITATION)) {
-    pushText(reply.slice(last, m.index));
-    for (const id of m[1].split(",")) segments.push({ kind: "citation", id: id.trim() });
-    last = m.index + m[0].length;
+  // Quotations are found across the whole reply first, so a citation after the closing mark can be seen.
+  let pos = 0;
+  const pieces: Array<{ kind: "plain"; text: string } | { kind: "quote"; raw: string; text: string }> = [];
+  for (const m of reply.matchAll(QUOTE)) {
+    // Never treat a citation marker as part of a quotation.
+    if (HAS_CITATION.test(m[1])) continue;
+    if (m.index > pos) pieces.push({ kind: "plain", text: reply.slice(pos, m.index) });
+    pieces.push({ kind: "quote", raw: m[0], text: m[1] });
+    pos = m.index + m[0].length;
   }
-  pushText(reply.slice(last));
+  if (pos < reply.length) pieces.push({ kind: "plain", text: reply.slice(pos) });
+
+  const pushPlain = (text: string) => {
+    let last = 0;
+    for (const m of text.matchAll(CITATION)) {
+      pushText(text.slice(last, m.index));
+      for (const id of m[1].split(/[,;]/)) segments.push({ kind: "citation", id: id.trim() });
+      last = m.index + m[0].length;
+    }
+    pushText(text.slice(last));
+  };
+
+  pieces.forEach((piece, i) => {
+    if (piece.kind === "plain") return pushPlain(piece.text);
+    const next = pieces[i + 1];
+    const attributed = next?.kind === "plain" && ATTRIBUTED.test(next.text);
+    const verifiedIn = findQuoteSource(piece.text, passages);
+    if (verifiedIn || attributed) segments.push({ kind: "quote", text: piece.text, verifiedIn });
+    else pushText(piece.raw);
+  });
   return segments;
 }
 
@@ -79,7 +106,7 @@ export function segmentReply(
 export function citedIds(reply: string): string[] {
   const ids: string[] = [];
   for (const m of reply.matchAll(CITATION)) {
-    for (const id of m[1].split(",")) {
+    for (const id of m[1].split(/[,;]/)) {
       const clean = id.trim();
       if (!ids.includes(clean)) ids.push(clean);
     }

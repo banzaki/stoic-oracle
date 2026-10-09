@@ -1,9 +1,30 @@
 import type { SourcePassage } from "./corpus/types";
+import type { PhilosopherId } from "./philosophers";
 
 export interface ChatRequest {
-  philosopher: "epictetus";
+  philosopher: PhilosopherId;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
 }
+
+export interface CouncilRound {
+  question: string;
+  replies: Array<{ speaker: PhilosopherId; content: string }>;
+}
+
+export interface CouncilRequest {
+  /** Earlier, completed rounds of this council. */
+  rounds: CouncilRound[];
+  question: string;
+}
+
+/** Newline-delimited JSON events streamed from /api/council: each philosopher speaks in turn. */
+export type CouncilEvent =
+  | { type: "speaker"; speaker: PhilosopherId }
+  | { type: "sources"; speaker: PhilosopherId; passages: SourcePassage[] }
+  | { type: "text"; speaker: PhilosopherId; text: string }
+  | { type: "speaker_done"; speaker: PhilosopherId; truncated: boolean }
+  | { type: "error"; speaker?: PhilosopherId; code: string; message: string }
+  | { type: "done" };
 
 /** Newline-delimited JSON events streamed from /api/chat. */
 export type StreamEvent =

@@ -57,7 +57,7 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
         const n = numbers.get(segment.id);
         if (!n) {
           return (
-            <sup key={key} title="This reference does not match any passage in the library." className="ml-0.5 text-[0.65em] text-ember">
+            <sup key={key} title="This reference does not match any passage in the library." className="ml-0.5 text-[0.7em] text-ember">
               [?]
             </sup>
           );
@@ -66,7 +66,7 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
           <sup key={key} className="ml-0.5">
             <a
               href={`#${replyId}-src-${segment.id}`}
-              className="rounded px-0.5 font-sans text-[0.65em] font-semibold text-gold hover:bg-gold/15 hover:text-gold-bright"
+              className="rounded px-0.5 font-sans text-[0.7em] font-semibold text-gold hover:bg-gold/15 hover:text-gold-bright"
               title={knownSources.get(segment.id)?.ref}
             >
               {n}
@@ -95,7 +95,7 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
           <Fragment key={key}>
             <q
               className="border-b border-dashed border-ember/50 before:content-['“'] after:content-['”']"
-              title="Not found word-for-word in the library — read this as paraphrase."
+              title="Attributed to the library but not found there word for word — read it as paraphrase."
             >
               {segment.text}
             </q>
@@ -123,7 +123,7 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
 
       {!streaming && cited.length > 0 && (
         <div className="mt-6 space-y-3">
-          <p className="text-[11px] uppercase tracking-[0.25em] text-dust">From the library · authentic text</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-dust">From the library · authentic text</p>
           {cited.map((s) => (
             <SourceCard key={s.id} id={`${replyId}-src-${s.id}`} passage={s} number={numbers.get(s.id)} />
           ))}
@@ -132,7 +132,7 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
 
       {!streaming && consulted.length > 0 && (
         <details className="group mt-4">
-          <summary className="cursor-pointer list-none text-xs text-dust transition hover:text-stone">
+          <summary className="cursor-pointer list-none text-sm text-dust transition hover:text-stone">
             <span className="mr-1 inline-block transition group-open:rotate-90">›</span>
             {consulted.length} other passage{consulted.length === 1 ? "" : "s"} consulted
           </summary>

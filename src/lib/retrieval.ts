@@ -170,7 +170,7 @@ export function searchPassages(corpus: Corpus, query: string, options: SearchOpt
   const perSectionCount = new Map<string, number>();
   for (const { i } of scored) {
     const passage = index.passages[i];
-    const section = passage.id.split(".")[0];
+    const section = passage.group ?? passage.id.split(".")[0];
     const count = perSectionCount.get(section) ?? 0;
     if (count >= perSection) continue;
     perSectionCount.set(section, count + 1);

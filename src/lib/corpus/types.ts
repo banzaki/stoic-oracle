@@ -1,3 +1,5 @@
+import type { PhilosopherId } from "../philosophers";
+
 export interface Work {
   id: string;
   title: string;
@@ -16,12 +18,17 @@ export interface Passage {
   /** Human-readable, verifiable reference, e.g. "Enchiridion 5". */
   ref: string;
   heading?: string;
+  /**
+   * Retrieval keeps at most a few passages per group so results come from different places.
+   * Defaults to the id before its first "." (e.g. "disc-14" for "disc-14.2").
+   */
+  group?: string;
   /** Verbatim text from the translation. */
   text: string;
 }
 
 export interface Corpus {
-  author: string;
+  author: PhilosopherId;
   works: Work[];
   passages: Passage[];
 }
@@ -32,6 +39,8 @@ export interface SourcePassage {
   ref: string;
   work: string;
   translator: string;
+  /** Edition the text was taken from, e.g. "Project Gutenberg #10661". */
+  source: string;
   sourceUrl: string;
   note?: string;
   text: string;
