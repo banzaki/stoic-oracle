@@ -62,4 +62,9 @@ Without `ANTHROPIC_API_KEY` the site still opens, but the chat shows a "The orac
 
 ## Library and licences
 
-`library/` contains public-domain EPUBs from Project Gutenberg and Wikisource, treated as read-only source material. The Project Gutenberg files carry the Project Gutenberg licence inside each EPUB. Two secondary works (Arnold's *Roman Stoicism*, Stock's *A Guide to Stoicism*) are kept for reference and not used for retrieval.
+`library/` contains EPUBs of public-domain texts, treated as read-only source material, and `data/corpus/` holds passages extracted from them verbatim.
+
+- **Project Gutenberg** editions (Long, Crossley, Stewart; Arnold and Stock): public domain in the USA, distributed unmodified with the Project Gutenberg licence inside each EPUB.
+- **Wikisource** edition of Seneca's *Moral Letters to Lucilius*, translated by Richard M. Gummere (Loeb Classical Library, 1917–1925): the translation is in the public domain; the Wikisource digital edition is available under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), courtesy of the contributors to [en.wikisource.org/wiki/Moral_letters_to_Lucilius](https://en.wikisource.org/wiki/Moral_letters_to_Lucilius).
+
+Arnold's *Roman Stoicism* and Stock's *A Guide to Stoicism* are kept for reference and not used for retrieval. The portraits in `public/portraits/` are AI-generated images made for this project.
