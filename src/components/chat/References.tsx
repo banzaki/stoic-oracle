@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import type { SourcePassage } from "@/lib/corpus/types";
-import { replyLabels, translatesPassages } from "@/lib/i18n";
+import { replyLabels } from "@/lib/i18n";
 import { SourceCard } from "./SourceCard";
 
 interface ReferencesProps {
@@ -24,7 +24,6 @@ interface ReferencesProps {
 /**
  * The sources of one reply, collapsed to a single line until the visitor opens them.
  * Cited passages come first; passages that were only consulted sit in their own fold.
- * Cards mount only when shown, so translations are requested only for what is read.
  */
 export function References({
   replyId,
@@ -71,10 +70,6 @@ export function References({
 
       {open && (
         <div id={panelId} className="animate-rise mt-3 space-y-3">
-          {translatesPassages(language) && labels.translationNote && (
-            <p className="text-xs leading-relaxed text-dust">{labels.translationNote}</p>
-          )}
-
           {cited.length > 0 && (
             <>
               <p className="text-xs uppercase tracking-[0.2em] text-dust">{labels.citedHeading}</p>

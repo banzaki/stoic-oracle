@@ -15,11 +15,11 @@ import { getPhilosopher, isPhilosopherId, type PhilosopherId } from "@/lib/philo
 import { admit, isRefusal, refusalResponse } from "@/lib/usage-limits";
 
 // Each speaker gives a short contribution, so the ceiling is lower than in a private conversation.
-const MAX_OUTPUT_TOKENS = 1500;
-const MAX_ROUNDS_IN_CONTEXT = 3;
+const MAX_OUTPUT_TOKENS = 900;
+const MAX_ROUNDS_IN_CONTEXT = 2;
 const MAX_QUESTION_CHARS = 4000;
-const MAX_REPLY_CHARS = 3000;
-const PASSAGES_PER_SPEAKER = 6;
+const MAX_REPLY_CHARS = 1500;
+const PASSAGES_PER_SPEAKER = 4;
 const MAX_BODY_BYTES = 120_000;
 /** Speaking order when the request names none. */
 const DEFAULT_ORDER: PhilosopherId[] = ["epictetus", "seneca", "marcus-aurelius"];

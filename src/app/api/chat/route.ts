@@ -14,11 +14,11 @@ import { isPhilosopherId } from "@/lib/philosophers";
 import { admit, isRefusal, refusalResponse } from "@/lib/usage-limits";
 
 // Ceiling on output per reply (thinking included); replies are meant to be short.
-const MAX_OUTPUT_TOKENS = 3000;
-const MAX_HISTORY_MESSAGES = 20;
+const MAX_OUTPUT_TOKENS = 1800;
+const MAX_HISTORY_MESSAGES = 12;
 const MAX_MESSAGE_CHARS = 4000;
 // Oldest exchanges are dropped beyond this, which also bounds the cost estimate per reply.
-const MAX_HISTORY_CHARS = 24_000;
+const MAX_HISTORY_CHARS = 12_000;
 const MAX_BODY_BYTES = 120_000;
 
 export const maxDuration = 120;

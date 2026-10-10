@@ -34,19 +34,15 @@ export const LIMITS = {
   repliesPerHour: num(process.env.REPLIES_PER_HOUR, 6),
   repliesPerDay: num(process.env.REPLIES_PER_DAY, 10),
   councilsPerDay: num(process.env.COUNCILS_PER_DAY, 2),
-  /** Passage translations per visitor (cheap, but not free). */
-  translationsPerHour: num(process.env.TRANSLATIONS_PER_HOUR, 20),
-  translationsPerDay: num(process.env.TRANSLATIONS_PER_DAY, 60),
   /** An address may be shared by several people, so its allowance is this many visitors'. */
   addressFactor: num(process.env.ADDRESS_FACTOR, 2),
 };
 
 // Conservative estimates (US dollars) reserved before a call and settled afterwards.
-// A private reply: persona, up to ~24k characters of history, 8 passages, 3000 output tokens,
-// plus the retrieval steps (worst case ~$0.062). A Council speaker reads up to three rounds and writes
-// at most 1500 tokens (~$0.047). A passage translation
-// reads one passage and writes at most 3000 tokens.
-const ESTIMATE_USD = { reply: 0.07, councilSpeaker: 0.05, translation: 0.035 };
+// A private reply: persona (cache write), up to ~12k characters of history, 6 passages,
+// 1800 output tokens, plus the retrieval steps: ~$0.041 at worst. A Council speaker: persona,
+// two earlier rounds and the current one, 4 passages, 900 output tokens: ~$0.036 at worst.
+const ESTIMATE_USD = { reply: 0.045, councilSpeaker: 0.04 };
 
 // US dollars per million tokens: input, output, cache write (5 min), cache read.
 const PRICES: Record<string, [number, number, number, number]> = {
@@ -230,12 +226,12 @@ function refusal(code: LimitCode, setCookie?: string): Refusal {
 }
 
 /**
- * Admits a request for model calls, or refuses it. `kind` is a private reply, a Council
- * question with `speakers` replies, or a passage translation.
+ * Admits a request for model calls, or refuses it. `kind` is a private reply, or a Council
+ * question with `speakers` replies.
  */
 export async function admit(
   request: Request,
-  kind: "reply" | "council" | "translation",
+  kind: "reply" | "council",
   speakers = 1,
 ): Promise<Admission | Refusal> {
   const { visitor, address, setCookie } = identify(request);
@@ -258,18 +254,11 @@ export async function admit(
     counters.push({ key: `v:${visitor}:${name}:${window}`, inc, limit, ttl });
     counters.push({ key: `a:${address}:${name}:${window}`, inc, limit: limit * factor, ttl });
   };
-  let estimate: number;
-  if (kind === "translation") {
-    both("tr", hour, 1, LIMITS.translationsPerHour, H);
-    both("tr", day, 1, LIMITS.translationsPerDay, D);
-    estimate = ESTIMATE_USD.translation;
-  } else {
-    const replies = kind === "council" ? speakers : 1;
-    both("replies", hour, replies, LIMITS.repliesPerHour, H);
-    both("replies", day, replies, LIMITS.repliesPerDay, D);
-    if (kind === "council") both("council", day, 1, LIMITS.councilsPerDay, D);
-    estimate = kind === "council" ? ESTIMATE_USD.councilSpeaker * speakers : ESTIMATE_USD.reply;
-  }
+  const replies = kind === "council" ? speakers : 1;
+  both("replies", hour, replies, LIMITS.repliesPerHour, H);
+  both("replies", day, replies, LIMITS.repliesPerDay, D);
+  if (kind === "council") both("council", day, 1, LIMITS.councilsPerDay, D);
+  const estimate = kind === "council" ? ESTIMATE_USD.councilSpeaker * speakers : ESTIMATE_USD.reply;
   const reserved = Math.ceil(estimate * 1_000_000);
 
   let result: ReserveResult;

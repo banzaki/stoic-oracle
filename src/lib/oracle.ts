@@ -12,7 +12,7 @@ import { recordUsage } from "./usage-limits";
 export const MODEL = "claude-sonnet-5-5";
 // Conversation rather than deep analysis; "low" is the recommended starting level for chat on this model.
 export const EFFORT = "low" as const;
-export const PASSAGES_PER_TURN = 8;
+export const PASSAGES_PER_TURN = 6;
 
 /**
  * The search query and language for the latest question, with the previous question as context
@@ -27,7 +27,7 @@ export function findSources(philosopher: PhilosopherId, query: string, limit = P
 }
 
 /** Keyword candidates per speaker before semantic re-ranking narrows them down. */
-export const CANDIDATES_PER_SPEAKER = RERANK_ENABLED ? 20 : PASSAGES_PER_TURN;
+export const CANDIDATES_PER_SPEAKER = RERANK_ENABLED ? 14 : PASSAGES_PER_TURN;
 
 /**
  * Passages for each speaker: keyword candidates, then re-ranked by meaning in one shared call.

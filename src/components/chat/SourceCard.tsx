@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { SourcePassage } from "@/lib/corpus/types";
 import { replyLabels } from "@/lib/i18n";
-import { usePassageTranslation } from "./use-passage-translation";
 
 const PREVIEW_CHARS = 320;
 
@@ -11,7 +10,7 @@ interface SourceCardProps {
   id: string;
   passage: SourcePassage;
   number?: number;
-  /** Conversation language: other than English, the passage is shown in an AI translation. */
+  /** Conversation language, for the labels. Passages are always shown in the English edition. */
   language?: string;
   highlighted?: boolean;
   /** For passages that were consulted but not cited. */
@@ -20,14 +19,10 @@ interface SourceCardProps {
 
 export function SourceCard({ id, passage, number, language = "en", highlighted = false, muted = false }: SourceCardProps) {
   const labels = replyLabels(language);
-  const translation = usePassageTranslation(passage.id, language);
   const [expanded, setExpanded] = useState(false);
-  const [showOriginal, setShowOriginal] = useState(false);
 
-  const translated = translation.status === "done" && !showOriginal;
-  const text = translated ? translation.text : passage.text;
-  const long = text.length > PREVIEW_CHARS;
-  const shown = expanded || !long ? text : `${text.slice(0, PREVIEW_CHARS).trimEnd()}…`;
+  const long = passage.text.length > PREVIEW_CHARS;
+  const shown = expanded || !long ? passage.text : `${passage.text.slice(0, PREVIEW_CHARS).trimEnd()}…`;
 
   return (
     <figure
@@ -47,20 +42,11 @@ export function SourceCard({ id, passage, number, language = "en", highlighted =
       </figcaption>
       {passage.note && <p className="mt-1 text-xs italic text-ember">{passage.note}</p>}
 
-      {translation.status !== "none" && (
-        <p className="mt-2 text-xs text-dust">
-          {translation.status === "loading" && <span className="animate-flicker">{labels.translating}</span>}
-          {translation.status === "failed" && labels.translationFailed}
-          {translation.status === "done" &&
-            (showOriginal ? labels.original(passage.translator) : labels.aiTranslation(passage.translator))}
-        </p>
-      )}
+      {language !== "en" && <p className="mt-2 text-xs text-dust">{labels.original(passage.translator)}</p>}
 
       <blockquote
-        lang={translated ? language : "en"}
-        className={`mt-3 whitespace-pre-line border-l-2 border-gold/30 pl-4 font-serif text-[1.02rem] leading-relaxed text-stone ${
-          translation.status === "loading" ? "opacity-60" : ""
-        }`}
+        lang="en"
+        className="mt-3 whitespace-pre-line border-l-2 border-gold/30 pl-4 font-serif text-[1.02rem] leading-relaxed text-stone"
       >
         {shown}
       </blockquote>
@@ -69,11 +55,6 @@ export function SourceCard({ id, passage, number, language = "en", highlighted =
         {long && (
           <button type="button" onClick={() => setExpanded((v) => !v)} className="text-gold hover:text-gold-bright">
             {expanded ? labels.showLess : labels.readFull}
-          </button>
-        )}
-        {translation.status === "done" && (
-          <button type="button" onClick={() => setShowOriginal((v) => !v)} className="text-gold hover:text-gold-bright">
-            {showOriginal ? labels.showTranslation : labels.showOriginal}
           </button>
         )}
         <details className="group">

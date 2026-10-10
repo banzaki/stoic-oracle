@@ -13,7 +13,7 @@ import { recordUsage } from "./usage-limits";
 
 const RERANK_MODEL = "claude-haiku-4-5";
 const RERANK_TIMEOUT_MS = 6000;
-const EXCERPT_CHARS = 420;
+const EXCERPT_CHARS = 300;
 
 export const RERANK_ENABLED = process.env.RERANK !== "off";
 
