@@ -11,6 +11,17 @@ export const CORPORA: Record<PhilosopherId, Corpus> = {
   seneca: senecaJson as Corpus,
 };
 
+const passages = new Map(
+  (Object.entries(CORPORA) as Array<[PhilosopherId, Corpus]>).flatMap(([author, c]) =>
+    c.passages.map((passage) => [passage.id, { passage, author }] as const),
+  ),
+);
+
+/** Looks a passage up by id across all three corpora (ids never collide: each work has its own prefix). */
+export function findPassage(id: string): { passage: Passage; author: PhilosopherId } | undefined {
+  return passages.get(id);
+}
+
 const works = new Map(Object.values(CORPORA).flatMap((c) => c.works.map((w) => [w.id, w] as const)));
 
 export function toSourcePassage(passage: Passage): SourcePassage {

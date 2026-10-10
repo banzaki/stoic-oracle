@@ -1,6 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { CouncilEvent, CouncilRequest, CouncilRound } from "@/lib/chat-protocol";
-import { describeError, EFFORT, findSources, formatPassages, logUsage, MODEL, searchQueryFor } from "@/lib/oracle";
+import {
+  analyseLatest,
+  describeError,
+  EFFORT,
+  findSources,
+  formatPassages,
+  languageReminder,
+  logUsage,
+  MODEL,
+} from "@/lib/oracle";
 import { SYSTEM_PROMPTS } from "@/lib/personas";
 import { getPhilosopher, isPhilosopherId, type PhilosopherId } from "@/lib/philosophers";
 
@@ -18,9 +27,11 @@ export const maxDuration = 300;
 const COUNCIL_RULES = `# The Council of the Stoa
 This conversation is a fictional gathering, the Council of the Stoa: Epictetus, Seneca and Marcus Aurelius answer one visitor together, taking turns. In life you never all met, but here you hear one another.
 - Answer the visitor's latest question in your own voice, with your own convictions, temperament and images.
-- If others have already spoken this round, engage with them by name: agree briefly where you agree, and say plainly where you disagree, see it differently or would put it more sharply. Do not repeat or summarise them, and do not take on their manner of speaking.
+- If others have already spoken this round, bring what they have not: a different angle, an objection, a harder case, another image or a concrete step. Name them where you disagree or would put it more sharply; where you simply agree, say so in a few words or not at all. Never restate or summarise what they said, never open by praising their answer or by announcing that you will not repeat it — start straight with your own point — and do not take on their manner of speaking.
+- If the question is factual or practical, the first to speak makes sure the visitor gets the plain answer, marked as knowledge of the visitor's age; those who follow do not repeat it, but test it, qualify it or say what it means for how to live.
+- Respond to what the others think, never to how they quote, cite or translate: the transcript shows their words without their sources, and quotations, citations and translations are not a subject of conversation.
 - Speak only for yourself; never write lines for the others.
-- 60–150 words. No headings, no lists.
+- 50–130 words. No headings, no lists.
 - Your quotation and citation rules still hold, and apply only to your own passages given below: never quote or cite the words of the others.`;
 
 const CITATION_MARKS = /\s*\[(?:ench|disc|gs|frag|med|ep|dial|clem|ben)-[^\]]*\]/g;
@@ -94,11 +105,12 @@ export async function POST(request: Request) {
       const send = (event: CouncilEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
 
       try {
-        const query = await searchQueryFor(
+        const { query, language } = await analyseLatest(
           client,
           [...council.rounds.map((r) => r.question), council.question],
           request.signal,
         );
+        send({ type: "language", code: language });
         const current: CouncilRound = { question: council.question, replies: [] };
 
         for (const speaker of order) {
@@ -112,7 +124,8 @@ export async function POST(request: Request) {
           const prompt =
             `${transcript([...council.rounds, current])}\n\n${formatPassages(sources)}\n\n` +
             `It is your turn, ${name}. Answer the visitor's latest question` +
-            (spoken.length ? `, and respond to what ${spoken.join(" and ")} just said.` : ". You speak first this round.");
+            (spoken.length ? `, and respond to what ${spoken.join(" and ")} just said.` : ". You speak first this round.") +
+            languageReminder(language);
 
           try {
             const response = client.messages.stream(

@@ -5,6 +5,11 @@
  * A quotation followed by a citation, as in `"..." [ench-5]`, claims to be the
  * philosopher's recorded words: it is shown as authentic only if its words appear,
  * in order, inside one of the passages, and flagged as unverified otherwise.
+ *
+ * In other languages the quotation is a translation and the English original travels
+ * inside the citation, as in `"tradução" [ench-5 | exact English]`. The English is
+ * what gets verified; the translation is then shown, marked as a translation.
+ *
  * Other text in quotation marks (a word, the visitor's own phrase) is ordinary
  * prose unless it happens to match a passage word for word.
  */
@@ -12,15 +17,25 @@
 export type Segment =
   | { kind: "text"; text: string }
   | { kind: "citation"; id: string }
-  | { kind: "quote"; text: string; verifiedIn: string | null };
+  | {
+      kind: "quote";
+      /** The words shown: the original, or a translation of it. */
+      text: string;
+      /** The English original given with a translated quotation. */
+      original?: string;
+      /** Passage the (original) words were found in, or null if they were not found. */
+      verifiedIn: string | null;
+    };
 
 // Passage id prefixes of the three corpora (see scripts/build-corpus.ts).
 const ID = String.raw`(?:ench|disc|gs|frag|med|ep|dial|clem|ben)-\d+(?:\.\d+)*`;
-const CITATION = new RegExp(String.raw`\[(${ID}(?:\s*[,;]\s*${ID})*)\]`, "g");
-// Straight or curly double quotes, at least a few characters long.
-const QUOTE = /[“"]([^“”"\n]{12,}?)[”"]/g;
+// One or more ids, optionally followed by "| English original" for a translated quotation.
+const CITATION_BODY = String.raw`(${ID}(?:\s*[,;]\s*${ID})*)(?:\s*\|\s*([^\]\n]*))?`;
+const CITATION = new RegExp(String.raw`\[${CITATION_BODY}\]`, "g");
+// Double quotation marks as used in English, French («»), Croatian and German („“), at least a few characters long.
+const QUOTE = /[“"«„]([^“”"«»„\n]{12,}?)[”"»“]/g;
 // A quotation counts as attributed when a citation follows right after it.
-const ATTRIBUTED = new RegExp(String.raw`^[\s,.;:!?—–-]{0,3}\[${ID}`);
+const ATTRIBUTED = new RegExp(String.raw`^[\s,.;:!?—–-]{0,3}\[${CITATION_BODY}\]`);
 const HAS_CITATION = new RegExp(String.raw`\[${ID}`);
 
 export function normalizeForMatch(text: string): string {
@@ -94,9 +109,16 @@ export function segmentReply(
   pieces.forEach((piece, i) => {
     if (piece.kind === "plain") return pushPlain(piece.text);
     const next = pieces[i + 1];
-    const attributed = next?.kind === "plain" && ATTRIBUTED.test(next.text);
+    const citation = next?.kind === "plain" ? next.text.match(ATTRIBUTED) : null;
+    const original = citation?.[2]?.trim();
+    if (original) {
+      // Verify the English original, preferably in the passage it cites.
+      const citedFirst = [...passages].sort((a, b) => Number(b.id === citation![1].trim()) - Number(a.id === citation![1].trim()));
+      segments.push({ kind: "quote", text: piece.text.trim(), original, verifiedIn: findQuoteSource(original, citedFirst) });
+      return;
+    }
     const verifiedIn = findQuoteSource(piece.text, passages);
-    if (verifiedIn || attributed) segments.push({ kind: "quote", text: piece.text, verifiedIn });
+    if (verifiedIn || citation) segments.push({ kind: "quote", text: piece.text.trim(), verifiedIn });
     else pushText(piece.raw);
   });
   return segments;

@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { SourcePassage } from "@/lib/corpus/types";
+import { replyLabels } from "@/lib/i18n";
 import { citedIds, segmentReply, type Segment } from "@/lib/quotes";
-import { SourceCard } from "./SourceCard";
+import { References } from "./References";
 
 interface ReplyProps {
   text: string;
@@ -13,6 +14,8 @@ interface ReplyProps {
   /** Every passage seen in the conversation, for citations to earlier turns. */
   knownSources: Map<string, SourcePassage>;
   replyId: string;
+  /** ISO 639-1 code of the conversation's language. */
+  language: string;
 }
 
 function Emphasis({ text }: { text: string }) {
@@ -24,7 +27,12 @@ function Emphasis({ text }: { text: string }) {
   );
 }
 
-export function Reply({ text, streaming, sources, knownSources, replyId }: ReplyProps) {
+export function Reply({ text, streaming, sources, knownSources, replyId, language }: ReplyProps) {
+  const labels = replyLabels(language);
+  const [referencesOpen, setReferencesOpen] = useState(false);
+  // The source the visitor asked to see by clicking a footnote number.
+  const [focus, setFocus] = useState<{ id: string; at: number } | null>(null);
+
   // Hide a half-streamed citation marker such as "[ench-" until it completes.
   const visible = streaming ? text.replace(/\[[^\]\n]*$/, "") : text;
 
@@ -57,7 +65,7 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
         const n = numbers.get(segment.id);
         if (!n) {
           return (
-            <sup key={key} title="This reference does not match any passage in the library." className="ml-0.5 text-[0.7em] text-ember">
+            <sup key={key} title={labels.unknownReference} className="ml-0.5 text-[0.7em] text-ember">
               [?]
             </sup>
           );
@@ -66,6 +74,11 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
           <sup key={key} className="ml-0.5">
             <a
               href={`#${replyId}-src-${segment.id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                setReferencesOpen(true);
+                setFocus({ id: segment.id, at: Date.now() });
+              }}
               className="rounded px-0.5 font-sans text-[0.7em] font-semibold text-gold hover:bg-gold/15 hover:text-gold-bright"
               title={knownSources.get(segment.id)?.ref}
             >
@@ -75,18 +88,20 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
         );
       }
       case "quote": {
+        const ref = segment.verifiedIn ? (knownSources.get(segment.verifiedIn)?.ref ?? segment.verifiedIn) : "";
+        const original = segment.original ? `\n“${segment.original}”` : "";
         if (segment.verifiedIn) {
-          const ref = knownSources.get(segment.verifiedIn)?.ref;
+          const note = segment.original ? labels.verifiedTranslated(ref) : labels.verified(ref);
           return (
             <Fragment key={key}>
               <q
                 className="border-b border-gold/40 text-gold-bright before:content-['“'] after:content-['”']"
-                title={`Verbatim from ${ref ?? "the library"}`}
+                title={note + original}
               >
                 {segment.text}
               </q>
-              <span aria-label="verified quotation" className="ml-0.5 align-super font-sans text-[0.6em] text-gold">
-                ✓
+              <span aria-label={note} className="ml-0.5 whitespace-nowrap align-super font-sans text-[0.6em] text-gold">
+                ✓{segment.original && labels.translatedMark ? ` ${labels.translatedMark}` : ""}
               </span>
             </Fragment>
           );
@@ -95,11 +110,11 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
           <Fragment key={key}>
             <q
               className="border-b border-dashed border-ember/50 before:content-['“'] after:content-['”']"
-              title="Attributed to the library but not found there word for word — read it as paraphrase."
+              title={labels.unverified + original}
             >
               {segment.text}
             </q>
-            <span aria-label="unverified wording" className="ml-0.5 align-super font-sans text-[0.6em] text-ember">
+            <span aria-label={labels.unverified} className="ml-0.5 align-super font-sans text-[0.6em] text-ember">
               ≈
             </span>
           </Fragment>
@@ -121,27 +136,17 @@ export function Reply({ text, streaming, sources, knownSources, replyId }: Reply
         ))}
       </div>
 
-      {!streaming && cited.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <p className="text-xs uppercase tracking-[0.22em] text-dust">From the library · authentic text</p>
-          {cited.map((s) => (
-            <SourceCard key={s.id} id={`${replyId}-src-${s.id}`} passage={s} number={numbers.get(s.id)} />
-          ))}
-        </div>
-      )}
-
-      {!streaming && consulted.length > 0 && (
-        <details className="group mt-4">
-          <summary className="cursor-pointer list-none text-sm text-dust transition hover:text-stone">
-            <span className="mr-1 inline-block transition group-open:rotate-90">›</span>
-            {consulted.length} other passage{consulted.length === 1 ? "" : "s"} consulted
-          </summary>
-          <div className="mt-3 space-y-3">
-            {consulted.map((s) => (
-              <SourceCard key={s.id} id={`${replyId}-src-${s.id}`} passage={s} />
-            ))}
-          </div>
-        </details>
+      {!streaming && (cited.length > 0 || consulted.length > 0) && (
+        <References
+          replyId={replyId}
+          cited={cited}
+          numbers={numbers}
+          consulted={consulted}
+          language={language}
+          open={referencesOpen}
+          onToggle={() => setReferencesOpen((v) => !v)}
+          focus={focus}
+        />
       )}
     </div>
   );

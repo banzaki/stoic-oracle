@@ -1,0 +1,81 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { findPassage, toSourcePassage } from "@/lib/corpus";
+import { describeError, EFFORT, MODEL } from "@/lib/oracle";
+import { getPhilosopher } from "@/lib/philosophers";
+
+/**
+ * Translates one library passage into the visitor's language, on demand: the browser asks
+ * only when the visitor opens a reply's references. The passage text is read from the
+ * corpus by id, never taken from the request, and the result is always labelled in the
+ * interface as an AI translation of the English edition.
+ */
+
+// The conversation model: the passages are shown as the philosopher's words, so fidelity matters
+// more than the small saving of a lighter model (which mistook archaic words in testing).
+const MAX_OUTPUT_TOKENS = 3000;
+const CACHE_LIMIT = 1000;
+
+// Passages are fixed texts, so a translation can be reused for every visitor.
+const cache = new Map<string, string>();
+
+function jsonError(status: number, code: string, message: string) {
+  return Response.json({ error: { code, message } }, { status });
+}
+
+function languageName(code: string): string | null {
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(code);
+    return name && name !== code ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(request: Request) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return jsonError(503, "missing_api_key", "The server has no ANTHROPIC_API_KEY.");
+  }
+
+  const body = (await request.json().catch(() => null)) as { id?: unknown; language?: unknown } | null;
+  const id = typeof body?.id === "string" ? body.id : "";
+  const language = typeof body?.language === "string" ? body.language.toLowerCase() : "";
+  const found = findPassage(id);
+  const name = /^[a-z]{2,3}$/.test(language) && language !== "en" ? languageName(language) : null;
+  if (!found || !name) return jsonError(400, "bad_request", "Unknown passage or language.");
+
+  const key = `${language}:${id}`;
+  const cached = cache.get(key);
+  if (cached) return Response.json({ translation: cached });
+
+  const passage = toSourcePassage(found.passage);
+  try {
+    const response = await new Anthropic().messages.create(
+      {
+        model: MODEL,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        output_config: { effort: EFFORT },
+        system:
+          `You translate passages of ${getPhilosopher(found.author).name} from ${passage.translator}'s English translation into ${name}. ` +
+          `Read the English with the meanings its words had in the 19th and early 20th centuries ("reviles" means insults, "perturbation" means emotional disturbance). ` +
+          `Translate faithfully and completely, keeping the tone, imagery and paragraph breaks, in natural ${name}. ` +
+          `Keep square-bracketed insertions in brackets. Do not add notes, titles or explanations. Reply with the translation only.`,
+        messages: [{ role: "user", content: passage.text }],
+      },
+      { signal: request.signal },
+    );
+    const translation = response.content
+      .flatMap((block) => (block.type === "text" ? [block.text] : []))
+      .join("")
+      .trim();
+    console.info(`translate[${language}:${id}]: model=${response.model} in=${response.usage.input_tokens} out=${response.usage.output_tokens}`);
+    if (!translation || response.stop_reason === "max_tokens") {
+      return jsonError(502, "translation_failed", "The translation could not be completed.");
+    }
+    if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+    cache.set(key, translation);
+    return Response.json({ translation });
+  } catch (error) {
+    const { code, message } = describeError(error);
+    return jsonError(502, code, message);
+  }
+}

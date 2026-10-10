@@ -19,6 +19,8 @@ export interface CouncilRequest {
 
 /** Newline-delimited JSON events streamed from /api/council: each philosopher speaks in turn. */
 export type CouncilEvent =
+  /** ISO 639-1 code of the visitor's language ("und" if unknown), sent before anyone speaks. */
+  | { type: "language"; code: string }
   | { type: "speaker"; speaker: PhilosopherId }
   | { type: "sources"; speaker: PhilosopherId; passages: SourcePassage[] }
   | { type: "text"; speaker: PhilosopherId; text: string }
@@ -28,6 +30,8 @@ export type CouncilEvent =
 
 /** Newline-delimited JSON events streamed from /api/chat. */
 export type StreamEvent =
+  /** ISO 639-1 code of the visitor's language ("und" if unknown), sent before the sources. */
+  | { type: "language"; code: string }
   | { type: "sources"; passages: SourcePassage[] }
   | { type: "text"; text: string }
   | { type: "done"; truncated: boolean }

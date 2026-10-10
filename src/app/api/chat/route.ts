@@ -1,6 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatRequest, StreamEvent } from "@/lib/chat-protocol";
-import { describeError, EFFORT, formatPassages, logUsage, MODEL, retrieveSources } from "@/lib/oracle";
+import {
+  describeError,
+  EFFORT,
+  formatPassages,
+  languageReminder,
+  logUsage,
+  MODEL,
+  retrieveSources,
+} from "@/lib/oracle";
 import { SYSTEM_PROMPTS } from "@/lib/personas";
 import { isPhilosopherId } from "@/lib/philosophers";
 
@@ -59,7 +67,8 @@ export async function POST(request: Request) {
 
       try {
         const userTurns = chat.messages.filter((m) => m.role === "user").map((m) => m.content);
-        const sources = await retrieveSources(client, chat.philosopher, userTurns, request.signal);
+        const { sources, language } = await retrieveSources(client, chat.philosopher, userTurns, request.signal);
+        send({ type: "language", code: language });
         send({ type: "sources", passages: sources });
 
         // Earlier turns are sent as plain text; only the latest turn carries passages.
@@ -67,7 +76,9 @@ export async function POST(request: Request) {
           i === chat.messages.length - 1
             ? {
                 role: "user",
-                content: `${formatPassages(sources)}\n\n<visitor_message>\n${m.content}\n</visitor_message>`,
+                content:
+                  `${formatPassages(sources)}\n\n<visitor_message>\n${m.content}\n</visitor_message>` +
+                  languageReminder(language),
               }
             : { role: m.role, content: m.content },
         );

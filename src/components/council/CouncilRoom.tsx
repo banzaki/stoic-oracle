@@ -26,6 +26,8 @@ interface Round {
   id: string;
   question: string;
   speeches: Speech[];
+  /** ISO 639-1 code of the visitor's language for this round. */
+  language?: string;
   status: "streaming" | "done" | "error";
   error?: { code: string; message: string };
 }
@@ -105,6 +107,9 @@ export function CouncilRoom() {
       let finished = false;
       for await (const event of readEvents<CouncilEvent>(res.body)) {
         switch (event.type) {
+          case "language":
+            updateRound(round.id, () => ({ language: event.code }));
+            break;
           case "speaker":
             updateSpeech(round.id, event.speaker, () => ({}));
             break;
@@ -239,6 +244,7 @@ export function CouncilRoom() {
                         streaming={speech.status === "streaming"}
                         sources={speech.sources}
                         knownSources={knownSources}
+                        language={round.language ?? "en"}
                       />
                     )}
                     {speech.status === "error" && speech.error && <ErrorNotice error={speech.error} />}

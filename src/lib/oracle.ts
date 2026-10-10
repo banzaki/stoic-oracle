@@ -4,7 +4,7 @@ import { CORPORA, toSourcePassage } from "./corpus";
 import type { SourcePassage } from "./corpus/types";
 import type { PhilosopherId } from "./philosophers";
 import { searchPassages } from "./retrieval";
-import { toEnglishQuery } from "./search-query";
+import { analyseQuestion, type QuestionAnalysis } from "./search-query";
 
 // The API key is read from the server environment only and never sent to the browser.
 export const MODEL = "claude-sonnet-5-5";
@@ -13,11 +13,11 @@ export const EFFORT = "low" as const;
 export const PASSAGES_PER_TURN = 8;
 
 /**
- * The search query for the latest question, with the previous question as context for follow-ups.
- * Questions in other languages are rewritten into English first, since the library is in English.
+ * The search query and language for the latest question, with the previous question as context
+ * for follow-ups. Questions in other languages are rewritten into English first, since the library is in English.
  */
-export function searchQueryFor(client: Anthropic, userTurns: string[], signal?: AbortSignal): Promise<string> {
-  return toEnglishQuery(client, userTurns.slice(-2).reverse().join("\n"), signal);
+export function analyseLatest(client: Anthropic, userTurns: string[], signal?: AbortSignal): Promise<QuestionAnalysis> {
+  return analyseQuestion(client, userTurns.slice(-2).reverse(), signal);
 }
 
 export function findSources(philosopher: PhilosopherId, query: string, limit = PASSAGES_PER_TURN): SourcePassage[] {
@@ -29,8 +29,29 @@ export async function retrieveSources(
   philosopher: PhilosopherId,
   userTurns: string[],
   signal?: AbortSignal,
-): Promise<SourcePassage[]> {
-  return findSources(philosopher, await searchQueryFor(client, userTurns, signal));
+): Promise<{ sources: SourcePassage[]; language: string }> {
+  const { query, language } = await analyseLatest(client, userTurns, signal);
+  return { sources: findSources(philosopher, query), language };
+}
+
+/**
+ * A per-turn reminder for conversations in another language. It travels with the visitor's
+ * message rather than in the system prompt, so the cached persona prefix stays unchanged.
+ */
+export function languageReminder(language: string): string {
+  if (!/^[a-z]{2,3}$/.test(language) || language === "en") return "";
+  let name: string | undefined;
+  try {
+    name = new Intl.DisplayNames(["en"], { type: "language" }).of(language);
+  } catch {
+    return "";
+  }
+  if (!name || name === language) return "";
+  return (
+    `\n\n<reply_language>${name}</reply_language>\n` +
+    `Reply in ${name}. Write every quotation in ${name}, with the exact English words after the bar inside its citation, ` +
+    `like "…" [id | exact English]. Do not put English words in your prose.`
+  );
 }
 
 export function formatPassages(passages: SourcePassage[]): string {

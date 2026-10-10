@@ -18,6 +18,8 @@ interface Turn {
   role: "user" | "assistant";
   content: string;
   sources?: SourcePassage[];
+  /** ISO 639-1 code of the visitor's language for this exchange. */
+  language?: string;
   status: "streaming" | "done" | "error";
   error?: { code: string; message: string };
 }
@@ -93,7 +95,9 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
 
       let finished = false;
       for await (const event of readEvents<StreamEvent>(res.body)) {
-        if (event.type === "sources") {
+        if (event.type === "language") {
+          updateTurn(replyTurn.id, () => ({ language: event.code }));
+        } else if (event.type === "sources") {
           updateTurn(replyTurn.id, () => ({ sources: event.passages }));
         } else if (event.type === "text") {
           updateTurn(replyTurn.id, (t) => ({ content: t.content + event.text }));
@@ -215,6 +219,7 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
                     streaming={turn.status === "streaming"}
                     sources={turn.sources ?? []}
                     knownSources={knownSources}
+                    language={turn.language ?? "en"}
                   />
                 )}
                 {turn.status === "error" && turn.error && <ErrorNotice error={turn.error} />}

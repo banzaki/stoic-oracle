@@ -18,8 +18,12 @@ export function ReadingGuide({ name }: { name: string }) {
           attributed to the library but not found there word for word — read them as paraphrase.
         </li>
         <li>
-          <span className="text-gold">Numbers</span> link to the full passages under each reply. Open{" "}
-          <em>About this source</em> on a passage for its translation and edition, or see all{" "}
+          In other languages, quotations are <span className="text-gold-bright">AI translations marked ✓ tr.</span>{" "}
+          — the English original was checked word for word, and appears with its source.
+        </li>
+        <li>
+          <span className="text-gold">Numbers</span> open the references under each reply, with the full passages.
+          Open <em>About this source</em> on a passage for its translation and edition, or see all{" "}
           <Link href="/sources" className="text-gold underline decoration-gold/40 underline-offset-2 hover:text-gold-bright">
             Sources
           </Link>
