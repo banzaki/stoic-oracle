@@ -57,7 +57,7 @@ function CouncilBanner() {
       className="animate-rise group relative mt-10 block overflow-hidden rounded-2xl border border-gold/25 bg-umber shadow-[0_0_80px_-30px_rgba(201,169,110,0.45)] transition duration-300 hover:border-gold/60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold"
     >
       {/* The scene: across the top on phones, the right side on wide screens, starting where the text ends. */}
-      <div className="relative aspect-[2.8/1] lg:absolute lg:inset-y-0 lg:right-0 lg:aspect-auto lg:w-[62%]">
+      <div className="relative aspect-[2.8/1] overflow-hidden lg:absolute lg:inset-y-0 lg:right-0 lg:aspect-auto lg:w-[62%]">
         <Image
           src="/council/council-scene.jpg"
           alt="AI-generated scene of Marcus Aurelius, Epictetus and Seneca in conversation at one table"
