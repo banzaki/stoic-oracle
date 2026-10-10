@@ -4,14 +4,17 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CouncilEvent, CouncilRequest } from "@/lib/chat-protocol";
 import type { SourcePassage } from "@/lib/corpus/types";
-import { getPhilosopher, PHILOSOPHERS, type PhilosopherId } from "@/lib/philosophers";
+import { getPhilosopher, type PhilosopherId } from "@/lib/philosophers";
 import { LaurelDivider } from "../Laurel";
 import { Portrait } from "../Portrait";
 import { Composer } from "../chat/Composer";
+import { LatestButton } from "../chat/LatestButton";
 import { ErrorNotice } from "../chat/ErrorNotice";
 import { readEvents } from "../chat/read-events";
 import { ReadingGuide } from "../chat/ReadingGuide";
 import { Reply } from "../chat/Reply";
+import { useFollowScroll } from "../chat/use-follow-scroll";
+import { CouncilLineup } from "./CouncilLineup";
 
 interface Speech {
   id: string;
@@ -39,6 +42,9 @@ const SUGGESTIONS = [
   "Is wealth an obstacle to a good life?",
 ];
 
+const DEFAULT_LINEUP: PhilosopherId[] = ["epictetus", "seneca", "marcus-aurelius"];
+const COUNT_WORDS = ["", "One", "Two", "Three"];
+
 let nextId = 0;
 const newId = () => `c${Date.now().toString(36)}${(nextId++).toString(36)}`;
 
@@ -46,8 +52,9 @@ export function CouncilRoom() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [busy, setBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  // Who speaks, in order; read when a question is sent, so changes never touch earlier rounds.
+  const [lineup, setLineup] = useState<PhilosopherId[]>(DEFAULT_LINEUP);
   const abortRef = useRef<AbortController | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
 
   const knownSources = useMemo(() => {
     const map = new Map<string, SourcePassage>();
@@ -55,11 +62,12 @@ export function CouncilRoom() {
     return map;
   }, [rounds]);
 
-  const progress = rounds.at(-1)?.speeches.reduce((n, s) => n + s.content.length, 0) ?? 0;
-  useEffect(() => {
-    // Nothing to follow before the first question; scrolling would hide the opening.
-    if (rounds.length) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [rounds.length, progress]);
+  // Grows with every round, speaker and streamed character; zero before the first question.
+  const progress = rounds.reduce(
+    (n, r) => n + 1 + r.speeches.reduce((m, s) => m + 1 + s.content.length + s.sources.length, 0),
+    0,
+  );
+  const { detached, jumpToLatest, follow } = useFollowScroll(progress);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -84,6 +92,7 @@ export function CouncilRoom() {
         replies: r.speeches.filter((s) => s.status === "done" && s.content.trim()).map((s) => ({ speaker: s.speaker, content: s.content })),
       }));
     const round: Round = { id: newId(), question: text, speeches: [], status: "streaming" };
+    follow();
     setRounds((all) => [...all, round]);
     setBusy(true);
 
@@ -94,7 +103,7 @@ export function CouncilRoom() {
       const res = await fetch("/api/council", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rounds: previous, question: text } satisfies CouncilRequest),
+        body: JSON.stringify({ rounds: previous, question: text, speakers: lineup } satisfies CouncilRequest),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
@@ -167,13 +176,13 @@ export function CouncilRoom() {
             ←
           </Link>
           <div className="flex -space-x-3">
-            {PHILOSOPHERS.map((p) => (
-              <Portrait key={p.id} philosopher={p} size={34} className="ring-2 ring-night" />
+            {lineup.map((id) => (
+              <Portrait key={id} philosopher={getPhilosopher(id)} size={34} className="ring-2 ring-night" />
             ))}
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-xl leading-none text-parchment sm:text-2xl">The Council of the Stoa</h1>
-            <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-dust">Three voices · one question</p>
+            <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-dust">{COUNT_WORDS[lineup.length]} voices · one question</p>
           </div>
           <button
             type="button"
@@ -191,8 +200,8 @@ export function CouncilRoom() {
         {rounds.length === 0 && (
           <section className="animate-rise flex flex-col items-center pt-4 text-center sm:pt-10">
             <div className="flex -space-x-6">
-              {PHILOSOPHERS.map((p) => (
-                <Portrait key={p.id} philosopher={p} size={104} preload className="ring-4 ring-night" />
+              {lineup.map((id) => (
+                <Portrait key={id} philosopher={getPhilosopher(id)} size={104} preload className="ring-4 ring-night" />
               ))}
             </div>
             <p className="mt-3 text-xs text-dust">AI-generated portraits · artistic interpretations</p>
@@ -263,8 +272,9 @@ export function CouncilRoom() {
         busy={busy}
         onSend={ask}
         onStop={() => abortRef.current?.abort()}
+        toolbar={<CouncilLineup lineup={lineup} onChange={setLineup} />}
+        notice={detached && rounds.length > 0 ? <LatestButton onClick={jumpToLatest} streaming={busy} /> : null}
       />
-      <div ref={endRef} />
     </div>
   );
 }

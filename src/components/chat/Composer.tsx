@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 interface ComposerProps {
   label: string;
@@ -8,6 +8,10 @@ interface ComposerProps {
   busy: boolean;
   onSend: (text: string) => unknown;
   onStop: () => void;
+  /** Controls shown above the message box (e.g. the Council's lineup). */
+  toolbar?: ReactNode;
+  /** Floating notice just above the box (e.g. "Latest messages"). */
+  notice?: ReactNode;
 }
 
 /**
@@ -15,12 +19,13 @@ interface ComposerProps {
  * (sticky, not fixed) with an opaque background, so it never covers the end of
  * the conversation, however tall the box grows.
  */
-export function Composer({ label, placeholder, busy, onSend, onStop }: ComposerProps) {
+export function Composer({ label, placeholder, busy, onSend, onStop, toolbar, notice }: ComposerProps) {
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (!busy) inputRef.current?.focus({ preventScroll: true });
+    // Only with a mouse: on touch screens focusing would open the keyboard and shift the page.
+    if (!busy && window.matchMedia("(pointer: fine)").matches) inputRef.current?.focus({ preventScroll: true });
   }, [busy]);
 
   function send() {
@@ -37,6 +42,8 @@ export function Composer({ label, placeholder, busy, onSend, onStop }: ComposerP
       }}
       className="sticky bottom-0 z-10 border-t border-gold/10 bg-night pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-8 before:h-8 before:bg-gradient-to-t before:from-night before:to-transparent"
     >
+      {notice && <div className="absolute inset-x-0 -top-14 flex justify-center">{notice}</div>}
+      {toolbar && <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-5">{toolbar}</div>}
       <div className="mx-auto flex max-w-3xl items-end gap-3 px-4 sm:px-5">
         <label htmlFor="message" className="sr-only">
           {label}

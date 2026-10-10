@@ -19,20 +19,30 @@ const MAX_ROUNDS_IN_CONTEXT = 3;
 const MAX_QUESTION_CHARS = 4000;
 const MAX_REPLY_CHARS = 3000;
 const PASSAGES_PER_SPEAKER = 6;
-/** Speaking order of the first round; later rounds rotate it so no one always speaks first. */
-const BASE_ORDER: PhilosopherId[] = ["epictetus", "seneca", "marcus-aurelius"];
+/** Speaking order when the request names none. */
+const DEFAULT_ORDER: PhilosopherId[] = ["epictetus", "seneca", "marcus-aurelius"];
 
 export const maxDuration = 300;
 
-const COUNCIL_RULES = `# The Council of the Stoa
-This conversation is a fictional gathering, the Council of the Stoa: Epictetus, Seneca and Marcus Aurelius answer one visitor together, taking turns. In life you never all met, but here you hear one another.
-- Answer the visitor's latest question in your own voice, with your own convictions, temperament and images.
-- If others have already spoken this round, bring what they have not: a different angle, an objection, a harder case, another image or a concrete step. Name them where you disagree or would put it more sharply; where you simply agree, say so in a few words or not at all. Never restate or summarise what they said, never open by praising their answer or by announcing that you will not repeat it — start straight with your own point — and do not take on their manner of speaking.
-- If the question is factual or practical, the first to speak makes sure the visitor gets the plain answer, marked as knowledge of the visitor's age; those who follow do not repeat it, but test it, qualify it or say what it means for how to live.
-- Respond to what the others think, never to how they quote, cite or translate: the transcript shows their words without their sources, and quotations, citations and translations are not a subject of conversation.
-- Speak only for yourself; never write lines for the others.
+function joinNames(names: string[]): string {
+  return names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+/** Rules for one speaker in the council; they follow the cached persona as a second system block. */
+function councilRules(speaker: PhilosopherId, order: PhilosopherId[]): string {
+  const self = getPhilosopher(speaker).name;
+  const others = order.filter((id) => id !== speaker).map((id) => getPhilosopher(id).name);
+  return `# The Council of the Stoa
+This conversation is a fictional gathering, the Council of the Stoa, where ${joinNames(order.map((id) => getPhilosopher(id).name))} answer one visitor, taking turns. You are ${self}; the others present are ${joinNames(others)}. In life you never all met, but here you hear one another.
+- Answer the visitor in your own voice, from your own convictions, works and experience, as you genuinely would.
+- Agree when you agree, disagree when you disagree, and add something when you have something new to add. A council where nobody disagrees is perfectly fine; never invent an objection to seem different, and never hide a real one to seem agreeable. Where you differ, the difference should come from what you actually hold and lived, and you should say why.
+- You may build on another's point, ask one of them a question, or grant that one of them put something well — when it comes naturally, briefly, and not as a ritual. You need not mention the others at all. Avoid stock phrases such as "I disagree with…", "Both are right" or "I will not repeat…"; do not restate or summarise what was said, and do not open with a comment on the previous answer unless that comment is your point.
+- If the question is factual or practical, whoever speaks first makes sure the visitor gets the plain answer, marked as knowledge of the visitor's age; those who follow do not repeat it.
+- Respond to what the others think, never to how they quote, cite or translate: quotations, citations and translations are not a subject of conversation.
+- Speak only for yourself, never write lines for the others, and never address yourself by your own name: in the transcript, lines marked "(you)" are yours.
 - 50–130 words. No headings, no lists.
 - Your quotation and citation rules still hold, and apply only to your own passages given below: never quote or cite the words of the others.`;
+}
 
 const CITATION_MARKS = /\s*\[(?:ench|disc|gs|frag|med|ep|dial|clem|ben)-[^\]]*\]/g;
 
@@ -42,8 +52,12 @@ function jsonError(status: number, code: string, message: string) {
 
 function parseRequest(body: unknown): CouncilRequest | null {
   if (!body || typeof body !== "object") return null;
-  const { rounds, question } = body as Record<string, unknown>;
+  const { rounds, question, speakers } = body as Record<string, unknown>;
   if (typeof question !== "string" || !question.trim() || question.length > MAX_QUESTION_CHARS) return null;
+  // Two or three distinct philosophers, in speaking order.
+  const order = speakers === undefined ? DEFAULT_ORDER : speakers;
+  if (!Array.isArray(order) || order.length < 2 || order.length > 3 || !order.every(isPhilosopherId)) return null;
+  if (new Set(order).size !== order.length) return null;
   if (!Array.isArray(rounds)) return null;
   const clean: CouncilRound[] = [];
   for (const r of rounds) {
@@ -58,20 +72,24 @@ function parseRequest(body: unknown): CouncilRequest | null {
     }
     clean.push({ question: q.trim(), replies: cleanReplies });
   }
-  return { rounds: clean.slice(-MAX_ROUNDS_IN_CONTEXT), question: question.trim() };
+  return { rounds: clean.slice(-MAX_ROUNDS_IN_CONTEXT), question: question.trim(), speakers: order };
 }
 
 function escapeXml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** The council so far as one transcript; citation marks are removed because ids belong to each speaker's own library. */
-function transcript(rounds: CouncilRound[]): string {
+/**
+ * The council so far as one transcript, as seen by `reader`: their own lines are marked "(you)".
+ * Citation marks are removed because ids belong to each speaker's own library.
+ */
+function transcript(rounds: CouncilRound[], reader: PhilosopherId): string {
   const lines = rounds.flatMap((round) => [
     `<visitor>${escapeXml(round.question)}</visitor>`,
-    ...round.replies.map(
-      (r) => `<speaker name="${getPhilosopher(r.speaker).name}">${escapeXml(r.content.replace(CITATION_MARKS, ""))}</speaker>`,
-    ),
+    ...round.replies.map((r) => {
+      const name = getPhilosopher(r.speaker).name + (r.speaker === reader ? " (you)" : "");
+      return `<speaker name="${name}">${escapeXml(r.content.replace(CITATION_MARKS, ""))}</speaker>`;
+    }),
   ]);
   return `<council_transcript>\n${lines.join("\n")}\n</council_transcript>`;
 }
@@ -94,8 +112,8 @@ export async function POST(request: Request) {
   const council = parseRequest(body);
   if (!council) return jsonError(400, "bad_request", "Invalid council format.");
 
-  const shift = council.rounds.length % BASE_ORDER.length;
-  const order = [...BASE_ORDER.slice(shift), ...BASE_ORDER.slice(0, shift)];
+  // The visitor's chosen lineup, in their chosen order.
+  const order = council.speakers ?? DEFAULT_ORDER;
 
   const client = new Anthropic();
   const encoder = new TextEncoder();
@@ -122,9 +140,9 @@ export async function POST(request: Request) {
 
           const spoken = current.replies.map((r) => getPhilosopher(r.speaker).name);
           const prompt =
-            `${transcript([...council.rounds, current])}\n\n${formatPassages(sources)}\n\n` +
+            `${transcript([...council.rounds, current], speaker)}\n\n${formatPassages(sources)}\n\n` +
             `It is your turn, ${name}. Answer the visitor's latest question` +
-            (spoken.length ? `, and respond to what ${spoken.join(" and ")} just said.` : ". You speak first this round.") +
+            (spoken.length ? ` (${joinNames(spoken)} spoke before you this round).` : ". You speak first this round.") +
             languageReminder(language);
 
           try {
@@ -135,7 +153,7 @@ export async function POST(request: Request) {
                 // The persona is the cached prefix, shared with private conversations; council rules follow it.
                 system: [
                   { type: "text", text: SYSTEM_PROMPTS[speaker], cache_control: { type: "ephemeral" } },
-                  { type: "text", text: COUNCIL_RULES },
+                  { type: "text", text: councilRules(speaker, order) },
                 ],
                 messages: [{ role: "user", content: prompt }],
                 output_config: { effort: EFFORT },

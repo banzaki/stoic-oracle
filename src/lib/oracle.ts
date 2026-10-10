@@ -49,8 +49,9 @@ export function languageReminder(language: string): string {
   if (!name || name === language) return "";
   return (
     `\n\n<reply_language>${name}</reply_language>\n` +
-    `Reply in ${name}. Write every quotation in ${name}, with the exact English words after the bar inside its citation, ` +
-    `like "…" [id | exact English]. Do not put English words in your prose.`
+    `Reply in ${name}. Every quotation must be your own ${name} translation inside the quotation marks, followed by the ` +
+    `exact English words after the bar inside its citation, like "${name} translation" [id | exact English words]. ` +
+    `Never put the English itself inside the quotation marks or anywhere in your prose, however archaic or beautiful it is.`
   );
 }
 

@@ -8,10 +8,12 @@ import type { Philosopher } from "@/lib/philosophers";
 import { LaurelDivider } from "../Laurel";
 import { Portrait } from "../Portrait";
 import { Composer } from "./Composer";
+import { LatestButton } from "./LatestButton";
 import { ErrorNotice } from "./ErrorNotice";
 import { readEvents } from "./read-events";
 import { ReadingGuide } from "./ReadingGuide";
 import { Reply } from "./Reply";
+import { useFollowScroll } from "./use-follow-scroll";
 
 interface Turn {
   id: string;
@@ -46,7 +48,6 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
   const [busy, setBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
 
   const knownSources = useMemo(() => {
     const map = new Map<string, SourcePassage>();
@@ -54,11 +55,10 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
     return map;
   }, [turns]);
 
-  const lastLength = turns.at(-1)?.content.length ?? 0;
-  useEffect(() => {
-    // Nothing to follow before the first message; scrolling would hide the opening.
-    if (turns.length) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [turns.length, lastLength]);
+  // Grows with every new turn and streamed character; zero before the first message,
+  // so the opening is never scrolled away.
+  const progress = turns.reduce((n, t) => n + 1 + t.content.length + (t.sources?.length ?? 0), 0);
+  const { detached, jumpToLatest, follow } = useFollowScroll(progress);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -72,6 +72,7 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
     const userTurn: Turn = { id: newId(), role: "user", content: text, status: "done" };
     const replyTurn: Turn = { id: newId(), role: "assistant", content: "", status: "streaming" };
     const messages = buildHistory(turns, text);
+    follow();
     setTurns((all) => [...all, userTurn, replyTurn]);
     setBusy(true);
 
@@ -235,8 +236,8 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
         busy={busy}
         onSend={ask}
         onStop={() => abortRef.current?.abort()}
+        notice={detached && turns.length > 0 ? <LatestButton onClick={jumpToLatest} streaming={busy} /> : null}
       />
-      <div ref={endRef} />
     </div>
   );
 }

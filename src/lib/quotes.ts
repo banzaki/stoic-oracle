@@ -111,7 +111,9 @@ export function segmentReply(
     const next = pieces[i + 1];
     const citation = next?.kind === "plain" ? next.text.match(ATTRIBUTED) : null;
     const original = citation?.[2]?.trim();
-    if (original) {
+    // English words in the translated form ("same words" [id | same words]) are the original, not a translation.
+    const literal = original ? findQuoteSource(piece.text, passages) : null;
+    if (original && !literal) {
       // Verify the English original, preferably in the passage it cites.
       const citedFirst = [...passages].sort((a, b) => Number(b.id === citation![1].trim()) - Number(a.id === citation![1].trim()));
       segments.push({ kind: "quote", text: piece.text.trim(), original, verifiedIn: findQuoteSource(original, citedFirst) });

@@ -15,6 +15,8 @@ export interface CouncilRequest {
   /** Earlier, completed rounds of this council. */
   rounds: CouncilRound[];
   question: string;
+  /** Two or three philosophers, in the order they should speak; defaults to all three. */
+  speakers?: PhilosopherId[];
 }
 
 /** Newline-delimited JSON events streamed from /api/council: each philosopher speaks in turn. */
