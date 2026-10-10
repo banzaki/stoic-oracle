@@ -246,7 +246,6 @@ function Council({ initial }: { initial: SavedCouncil | null }) {
                 <Portrait key={id} philosopher={getPhilosopher(id)} size={104} preload className="ring-4 ring-night" />
               ))}
             </div>
-            <p className="mt-3 text-xs text-dust">AI-generated portraits · artistic interpretations</p>
             <p className="mt-8 max-w-xl font-serif text-xl leading-relaxed text-stone">
               In life they never sat together. Here the freedman, the statesman and the emperor answer you in turn — and
               each hears what the others said.

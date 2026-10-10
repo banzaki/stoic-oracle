@@ -47,6 +47,46 @@ function PhilosopherCard({ philosopher, index }: { philosopher: Philosopher; ind
   );
 }
 
+/** The Council of the Stoa as the homepage's closing invitation: the three at one table. */
+function CouncilBanner() {
+  return (
+    <Link
+      href="/council"
+      aria-label="Enter the Council of the Stoa: ask one question and hear three perspectives"
+      style={{ animationDelay: "480ms" }}
+      className="animate-rise group relative mt-10 block overflow-hidden rounded-2xl border border-gold/25 bg-umber shadow-[0_0_80px_-30px_rgba(201,169,110,0.45)] transition duration-300 hover:border-gold/60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold"
+    >
+      {/* The scene: across the top on phones, the right side on wide screens, starting where the text ends. */}
+      <div className="relative aspect-[2.8/1] lg:absolute lg:inset-y-0 lg:right-0 lg:aspect-auto lg:w-[62%]">
+        <Image
+          src="/council/council-scene.jpg"
+          alt="AI-generated scene of Marcus Aurelius, Epictetus and Seneca in conversation at one table"
+          fill
+          sizes="(min-width: 1152px) 740px, (min-width: 1024px) 62vw, 100vw"
+          className="object-cover object-center transition duration-700 group-hover:scale-[1.03]"
+        />
+        {/* Darkening towards the text: downwards on phones, leftwards on wide screens. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-umber via-transparent to-transparent lg:bg-gradient-to-r lg:from-umber lg:via-umber/0 lg:via-[14%] lg:to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-umber/25 via-transparent to-umber/40" />
+      </div>
+
+      <div className="relative px-6 pb-8 pt-2 text-center lg:min-h-[15rem] lg:w-[40%] lg:py-10 lg:pl-12 lg:pr-0 lg:text-left">
+        <p className="text-xs uppercase tracking-[0.32em] text-gold">The Council of the Stoa</p>
+        <h2 className="mt-3 font-display text-4xl font-medium leading-[1.05] text-parchment sm:text-5xl lg:text-4xl xl:text-5xl">
+          Bring them together
+        </h2>
+        <p className="mt-3 font-serif text-lg text-stone">Ask one question. Hear three perspectives.</p>
+        <span className="mt-7 inline-flex items-center gap-2 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-night shadow-[0_8px_30px_-10px_rgba(201,169,110,0.7)] transition group-hover:bg-gold-bright">
+          Enter the Council
+          <span aria-hidden="true" className="transition group-hover:translate-x-0.5">
+            →
+          </span>
+        </span>
+      </div>
+    </Link>
+  );
+}
+
 export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 pt-10 sm:px-8">
@@ -54,16 +94,16 @@ export default function Home() {
         <p className="text-xs uppercase tracking-[0.45em] text-gold">Stoic Oracle</p>
       </header>
 
-      <section className="mx-auto mt-12 max-w-3xl text-center sm:mt-16">
+      <section className="mx-auto mt-12 max-w-5xl text-center sm:mt-16">
         <h1 className="animate-rise font-display text-5xl font-medium leading-[1.05] text-parchment sm:text-7xl">
-          Converse with the Stoics
+          Seek Wisdom from the Stoics
         </h1>
         <p
-          className="animate-rise mx-auto mt-6 max-w-xl font-serif text-lg leading-relaxed text-stone sm:text-xl"
+          className="animate-rise mx-auto mt-6 max-w-2xl font-serif text-lg leading-relaxed text-stone sm:text-xl"
           style={{ animationDelay: "80ms" }}
         >
-          Three voices from the Stoa, brought back from their own writings. They will listen, question you, and
-          disagree when you are wrong — and every quotation is traced to its source and reference.
+          Three voices from the Stoic tradition, grounded in their own writings. Ask questions, explore their ideas,
+          and discover where their perspectives meet.
         </p>
       </section>
 
@@ -73,29 +113,11 @@ export default function Home() {
         ))}
       </section>
 
-      <section
-        className="animate-rise mt-10 flex flex-col items-center gap-4 rounded-2xl border border-gold/15 bg-umber/60 px-6 py-8 text-center sm:flex-row sm:justify-between sm:text-left"
-        style={{ animationDelay: "480ms" }}
-      >
-        <div>
-          <h2 className="font-display text-3xl text-parchment">The Council of the Stoa</h2>
-          <p className="mt-1 font-serif text-base text-stone">
-            Put one question to all three, and hear where they agree — and where they do not.
-          </p>
-        </div>
-        <Link
-          href="/council"
-          className="shrink-0 rounded-full border border-gold/50 bg-gold/10 px-5 py-2 text-sm font-medium text-gold-bright transition hover:border-gold hover:bg-gold/20"
-        >
-          Convene the council →
-        </Link>
-      </section>
+      <CouncilBanner />
 
-      <footer className="mt-auto space-y-1 pt-16 text-center text-xs leading-relaxed text-dust">
-        <p>The philosophers are AI portrayals — roughly 70% historical record, 30% respectful imagination.</p>
-        <p>Portraits are AI-generated artistic interpretations, not historical likenesses.</p>
+      <footer className="mt-auto pt-16 text-center text-xs leading-relaxed text-dust">
         <p>
-          Texts: public-domain translations from Project Gutenberg and Wikisource ·{" "}
+          Texts: public-domain translations from Project Gutenberg, Standard Ebooks and Wikisource ·{" "}
           <Link href="/sources" className="text-stone underline decoration-dust/60 underline-offset-2 hover:text-gold">
             Sources
           </Link>

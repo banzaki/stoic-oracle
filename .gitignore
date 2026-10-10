@@ -53,3 +53,6 @@ next-env.d.ts
 
 # results of npm run eval
 /eval-results/
+
+# design references dropped at the project root
+/*.png

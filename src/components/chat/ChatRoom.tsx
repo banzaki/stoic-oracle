@@ -204,7 +204,6 @@ function Conversation({ philosopher, initialTurns }: { philosopher: Philosopher;
         {empty && (
           <section className="animate-rise flex flex-col items-center pt-4 text-center sm:pt-10">
             <Portrait philosopher={philosopher} size={144} preload className="shadow-[0_0_60px_-10px_rgba(201,169,110,0.45)]" />
-            <p className="mt-3 text-xs text-dust">AI-generated portrait · artistic interpretation</p>
             <p className="mt-4 font-serif text-base text-stone">{philosopher.nativeName}</p>
             <blockquote className="mt-8 max-w-xl">
               <p className="font-display text-3xl italic leading-snug text-parchment sm:text-4xl">“{philosopher.opening.text}”</p>
