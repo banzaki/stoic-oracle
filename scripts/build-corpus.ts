@@ -159,17 +159,19 @@ function titleCaseWords(s: string): string {
 
 // ---------- Epictetus ----------
 
+// The Enchiridion comes from Long's selection volume; the Discourses from the complete edition.
 const DISCOURSES_EPUB = "A Selection from the Discourses of Epictetus with the Encheiridion.epub";
+const COMPLETE_DISCOURSES_EPUB = "epictetus_discourses_george-long.epub";
 const GOLDEN_EPUB = "The Golden Sayings of Epictetus, with the Hymn of Cleanthes by Epictetus.epub";
 
 const epictetusWorks: Work[] = [
   {
     id: "discourses",
-    title: "Discourses (selection)",
+    title: "Discourses",
     translator: "George Long",
-    source: "Project Gutenberg #10661",
-    sourceUrl: "https://www.gutenberg.org/ebooks/10661",
-    libraryFile: DISCOURSES_EPUB,
+    source: "Standard Ebooks (from Long's translation via the Perseus Project)",
+    sourceUrl: "https://standardebooks.org/ebooks/epictetus/discourses/george-long",
+    libraryFile: COMPLETE_DISCOURSES_EPUB,
   },
   {
     id: "enchiridion",
@@ -198,31 +200,33 @@ const epictetusWorks: Work[] = [
   },
 ];
 
-/** Discourses: sections separated by <hr/>, each opening with an upper-case title and a dash. */
+/** The complete Discourses (Standard Ebooks): one file per book, one <section id="chapter-B-C"> per chapter. */
 async function extractDiscourses(): Promise<Passage[]> {
-  const html = await readEpubFile(DISCOURSES_EPUB, /h-3\.htm\.xhtml$/);
-  const body = html.slice(html.indexOf("</h2>") + 5);
-  const sections = body.split(/<hr[^>]*>/i).map(htmlToParagraphs).filter((p) => p.length);
+  const files = await readEpubFiles(COMPLETE_DISCOURSES_EPUB, /text\/book-\d\.xhtml$/);
   const passages: Passage[] = [];
-
-  sections.forEach((paragraphs, idx) => {
-    const sectionNo = idx + 1;
-    const titleMatch = paragraphs[0].match(/^((?:[^a-z[]|\[[^\]]*\]){6,}?)\s*[—-]\s*(?=[A-Z])/);
-    if (!titleMatch) throw new Error(`Discourses section ${sectionNo} has no title: ${paragraphs[0].slice(0, 80)}`);
-    const title = titleCase(titleMatch[1].replace(/\.$/, "").trim());
-    paragraphs[0] = paragraphs[0].slice(titleMatch[0].length);
-
-    const chunks = chunkParagraphs(paragraphs);
-    chunks.forEach((chunk, ci) => {
-      passages.push({
-        id: `disc-${sectionNo}${chunks.length > 1 ? `.${ci + 1}` : ""}`,
-        workId: "discourses",
-        ref: `Discourses (sel.) §${sectionNo}, “${title}”${paraLabel(chunk, chunks.length)}`,
-        heading: title,
-        text: chunk.text,
+  for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
+    const html = file.html.replace(/<a[^>]*epub:type="noteref"[^>]*>[\s\S]*?<\/a>/gi, ""); // Long's notes
+    const chapters = html.split(/<section[^>]*id="chapter-(\d+)-(\d+)"[^>]*>/i);
+    for (let i = 1; i < chapters.length; i += 3) {
+      const [book, chapter] = [Number(chapters[i]), Number(chapters[i + 1])];
+      let body = chapters[i + 2];
+      const titleHtml = body.match(/<p[^>]*epub:type="title"[^>]*>([\s\S]*?)<\/p>/i)?.[1];
+      const title = titleHtml ? parse(titleHtml).text.replace(/\s+/g, " ").trim() : undefined;
+      body = body.replace(/<hgroup[\s\S]*?<\/hgroup>/i, "").replace(/<h3[^>]*>[\s\S]*?<\/h3>/i, "");
+      const chunks = chunkParagraphs(htmlToParagraphs(body));
+      chunks.forEach((chunk, ci) => {
+        passages.push({
+          id: `disc-${book}.${chapter}${chunks.length > 1 ? `.${ci + 1}` : ""}`,
+          workId: "discourses",
+          ref: `Discourses ${toRoman(book)}.${chapter}${title ? `, “${title}”` : ""}${paraLabel(chunk, chunks.length)}`,
+          heading: title,
+          group: `disc-${book}.${chapter}`,
+          text: chunk.text,
+        });
       });
-    });
-  });
+    }
+  }
+  if (passages.length < 300) throw new Error(`Only ${passages.length} Discourses passages: has the EPUB layout changed?`);
   return passages;
 }
 

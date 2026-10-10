@@ -4,14 +4,15 @@ import {
   analyseLatest,
   describeError,
   EFFORT,
-  findSources,
   formatPassages,
   languageReminder,
   logUsage,
   MODEL,
+  selectSources,
 } from "@/lib/oracle";
 import { SYSTEM_PROMPTS } from "@/lib/personas";
 import { getPhilosopher, isPhilosopherId, type PhilosopherId } from "@/lib/philosophers";
+import { checkLimits } from "@/lib/usage-limits";
 
 // Each speaker gives a short contribution, so the ceiling is lower than in a private conversation.
 const MAX_OUTPUT_TOKENS = 1500;
@@ -36,7 +37,7 @@ function councilRules(speaker: PhilosopherId, order: PhilosopherId[]): string {
 This conversation is a fictional gathering, the Council of the Stoa, where ${joinNames(order.map((id) => getPhilosopher(id).name))} answer one visitor, taking turns. You are ${self}; the others present are ${joinNames(others)}. In life you never all met, but here you hear one another.
 - Answer the visitor in your own voice, from your own convictions, works and experience, as you genuinely would.
 - Agree when you agree, disagree when you disagree, and add something when you have something new to add. A council where nobody disagrees is perfectly fine; never invent an objection to seem different, and never hide a real one to seem agreeable. Where you differ, the difference should come from what you actually hold and lived, and you should say why.
-- You may build on another's point, ask one of them a question, or grant that one of them put something well — when it comes naturally, briefly, and not as a ritual. You need not mention the others at all. Avoid stock phrases such as "I disagree with…", "Both are right" or "I will not repeat…"; do not restate or summarise what was said, and do not open with a comment on the previous answer unless that comment is your point.
+- You may build on another's point, ask one of them a question, or grant that one of them put something well — when it comes naturally, briefly, and not as a ritual. You need not mention the others at all. Begin with your own thought, not with the previous speaker: no opening verdict on what they said ("X put it well", "Both have marked the line", "I would only add…"). If you connect to someone, do it later and in substance. Avoid stock phrases such as "I disagree with…", "Both are right" or "I will not repeat…", and do not restate or summarise what was said.
 - If the question is factual or practical, whoever speaks first makes sure the visitor gets the plain answer, marked as knowledge of the visitor's age; those who follow do not repeat it.
 - Respond to what the others think, never to how they quote, cite or translate: quotations, citations and translations are not a subject of conversation.
 - Speak only for yourself, never write lines for the others, and never address yourself by your own name: in the transcript, lines marked "(you)" are yours.
@@ -115,6 +116,9 @@ export async function POST(request: Request) {
   // The visitor's chosen lineup, in their chosen order.
   const order = council.speakers ?? DEFAULT_ORDER;
 
+  const refusal = checkLimits(request, "reply", order.length);
+  if (refusal) return jsonError(refusal.status, refusal.code, refusal.message);
+
   const client = new Anthropic();
   const encoder = new TextEncoder();
 
@@ -123,19 +127,18 @@ export async function POST(request: Request) {
       const send = (event: CouncilEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
 
       try {
-        const { query, language } = await analyseLatest(
-          client,
-          [...council.rounds.map((r) => r.question), council.question],
-          request.signal,
-        );
+        const questions = [...council.rounds.map((r) => r.question), council.question];
+        const { query, language } = await analyseLatest(client, questions, request.signal);
         send({ type: "language", code: language });
+        // One re-ranking call chooses every speaker's passages before anyone speaks.
+        const chosen = await selectSources(client, order, query, questions, PASSAGES_PER_SPEAKER, request.signal);
         const current: CouncilRound = { question: council.question, replies: [] };
 
         for (const speaker of order) {
           if (request.signal.aborted) break;
           const name = getPhilosopher(speaker).name;
           send({ type: "speaker", speaker });
-          const sources = findSources(speaker, query, PASSAGES_PER_SPEAKER);
+          const sources = chosen[speaker] ?? [];
           send({ type: "sources", speaker, passages: sources });
 
           const spoken = current.replies.map((r) => getPhilosopher(r.speaker).name);

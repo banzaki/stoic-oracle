@@ -8,11 +8,14 @@ import { getPhilosopher, type PhilosopherId } from "@/lib/philosophers";
 import { LaurelDivider } from "../Laurel";
 import { Portrait } from "../Portrait";
 import { Composer } from "../chat/Composer";
+import { ConversationMenu } from "../chat/ConversationMenu";
+import { conversationAsMarkdown, downloadFile } from "../chat/export";
 import { LatestButton } from "../chat/LatestButton";
 import { ErrorNotice } from "../chat/ErrorNotice";
 import { readEvents } from "../chat/read-events";
 import { ReadingGuide } from "../chat/ReadingGuide";
 import { Reply } from "../chat/Reply";
+import { forget, save, useSaved } from "../chat/saved-conversation";
 import { useFollowScroll } from "../chat/use-follow-scroll";
 import { CouncilLineup } from "./CouncilLineup";
 
@@ -48,12 +51,25 @@ const COUNT_WORDS = ["", "One", "Two", "Three"];
 let nextId = 0;
 const newId = () => `c${Date.now().toString(36)}${(nextId++).toString(36)}`;
 
+interface SavedCouncil {
+  rounds: Round[];
+  lineup: PhilosopherId[];
+}
+
+const STORAGE_KEY = "council";
+
 export function CouncilRoom() {
-  const [rounds, setRounds] = useState<Round[]>([]);
+  // A saved council remounts the room with it, once the page has hydrated.
+  const saved = useSaved<SavedCouncil>(STORAGE_KEY);
+  return <Council key={saved ? "restored" : "new"} initial={saved} />;
+}
+
+function Council({ initial }: { initial: SavedCouncil | null }) {
+  const [rounds, setRounds] = useState<Round[]>(initial?.rounds ?? []);
   const [busy, setBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   // Who speaks, in order; read when a question is sent, so changes never touch earlier rounds.
-  const [lineup, setLineup] = useState<PhilosopherId[]>(DEFAULT_LINEUP);
+  const [lineup, setLineup] = useState<PhilosopherId[]>(initial?.lineup ?? DEFAULT_LINEUP);
   const abortRef = useRef<AbortController | null>(null);
 
   const knownSources = useMemo(() => {
@@ -70,6 +86,29 @@ export function CouncilRoom() {
   const { detached, jumpToLatest, follow } = useFollowScroll(progress);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Saved whenever no one is speaking: the rounds so far and the chosen lineup.
+  useEffect(() => {
+    if (busy || !rounds.length) return;
+    const settled = rounds.map((r) => ({ ...r, speeches: r.speeches.filter((s) => s.status !== "streaming") }));
+    save<SavedCouncil>(STORAGE_KEY, { rounds: settled, lineup });
+  }, [busy, rounds, lineup]);
+
+  function startOver() {
+    abortRef.current?.abort();
+    forget(STORAGE_KEY);
+    setRounds([]);
+    window.scrollTo({ top: 0 });
+  }
+
+  function exportCouncil() {
+    const entries = rounds.flatMap((r) => [
+      { speaker: "You", content: r.question },
+      ...r.speeches.map((s) => ({ speaker: getPhilosopher(s.speaker).name, content: s.content })),
+    ]);
+    const markdown = conversationAsMarkdown("The Council of the Stoa", entries, knownSources);
+    downloadFile(`stoic-oracle-council-${new Date().toISOString().slice(0, 10)}.md`, markdown);
+  }
 
   const updateRound = (id: string, patch: (r: Round) => Partial<Round>) =>
     setRounds((all) => all.map((r) => (r.id === id ? { ...r, ...patch(r) } : r)));
@@ -184,13 +223,16 @@ export function CouncilRoom() {
             <h1 className="font-display text-xl leading-none text-parchment sm:text-2xl">The Council of the Stoa</h1>
             <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-dust">{COUNT_WORDS[lineup.length]} voices · one question</p>
           </div>
+          <ConversationMenu disabled={rounds.length === 0 || busy} onNew={startOver} onExport={exportCouncil} />
           <button
             type="button"
             onClick={() => setShowGuide((v) => !v)}
             className="shrink-0 rounded-full border border-gold/30 px-3 py-1 text-xs text-stone transition hover:border-gold/60 hover:text-gold-bright"
             aria-expanded={showGuide}
+            aria-label="How to read"
           >
-            How to read
+            <span aria-hidden="true" className="sm:hidden">?</span>
+            <span aria-hidden="true" className="hidden sm:inline">How to read</span>
           </button>
         </div>
         {showGuide && <ReadingGuide name="each philosopher" />}
@@ -253,6 +295,7 @@ export function CouncilRoom() {
                         streaming={speech.status === "streaming"}
                         sources={speech.sources}
                         knownSources={knownSources}
+                        speaker={philosopher}
                         language={round.language ?? "en"}
                       />
                     )}

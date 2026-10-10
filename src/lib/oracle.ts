@@ -3,8 +3,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { CORPORA, toSourcePassage } from "./corpus";
 import type { SourcePassage } from "./corpus/types";
 import type { PhilosopherId } from "./philosophers";
+import { RERANK_ENABLED, rerankSources } from "./rerank";
 import { searchPassages } from "./retrieval";
 import { analyseQuestion, type QuestionAnalysis } from "./search-query";
+import { recordUsage } from "./usage-limits";
 
 // The API key is read from the server environment only and never sent to the browser.
 export const MODEL = "claude-sonnet-5-5";
@@ -24,6 +26,26 @@ export function findSources(philosopher: PhilosopherId, query: string, limit = P
   return searchPassages(CORPORA[philosopher], query, { limit }).map(toSourcePassage);
 }
 
+/** Keyword candidates per speaker before semantic re-ranking narrows them down. */
+export const CANDIDATES_PER_SPEAKER = RERANK_ENABLED ? 20 : PASSAGES_PER_TURN;
+
+/**
+ * Passages for each speaker: keyword candidates, then re-ranked by meaning in one shared call.
+ * `userTurns` are the visitor's messages so far; the last one is the question being answered.
+ */
+export async function selectSources(
+  client: Anthropic,
+  speakers: PhilosopherId[],
+  query: string,
+  userTurns: string[],
+  limit: number,
+  signal?: AbortSignal,
+): Promise<Partial<Record<PhilosopherId, SourcePassage[]>>> {
+  const candidates = Math.max(limit, Math.round((CANDIDATES_PER_SPEAKER * limit) / PASSAGES_PER_TURN));
+  const pools = Object.fromEntries(speakers.map((id) => [id, findSources(id, query, candidates)]));
+  return rerankSources(client, userTurns.at(-1) ?? "", userTurns.at(-2), pools, limit, signal);
+}
+
 export async function retrieveSources(
   client: Anthropic,
   philosopher: PhilosopherId,
@@ -31,7 +53,8 @@ export async function retrieveSources(
   signal?: AbortSignal,
 ): Promise<{ sources: SourcePassage[]; language: string }> {
   const { query, language } = await analyseLatest(client, userTurns, signal);
-  return { sources: findSources(philosopher, query), language };
+  const chosen = await selectSources(client, [philosopher], query, userTurns, PASSAGES_PER_TURN, signal);
+  return { sources: chosen[philosopher] ?? [], language };
 }
 
 /**
@@ -49,7 +72,8 @@ export function languageReminder(language: string): string {
   if (!name || name === language) return "";
   return (
     `\n\n<reply_language>${name}</reply_language>\n` +
-    `Reply in ${name}. Every quotation must be your own ${name} translation inside the quotation marks, followed by the ` +
+    `Reply in the visitor's own language and variant (it appears to be ${name}; follow their spelling and dialect). ` +
+    `Every quotation must be your own translation into that language inside the quotation marks, followed by the ` +
     `exact English words after the bar inside its citation, like "${name} translation" [id | exact English words]. ` +
     `Never put the English itself inside the quotation marks or anywhere in your prose, however archaic or beautiful it is.`
   );
@@ -79,7 +103,9 @@ export function describeError(error: unknown): { code: string; message: string }
   return { code: "server_error", message: "Something went wrong on the server." };
 }
 
+/** Logs a model call's token usage and adds its cost to today's budget. */
 export function logUsage(label: string, message: Anthropic.Message) {
+  recordUsage(message.model, message.usage);
   const u = message.usage;
   console.info(
     `${label}: model=${message.model} stop=${message.stop_reason} in=${u.input_tokens}` +

@@ -213,8 +213,11 @@ const LABELS: Record<string, ReplyLabels> = {
 
 /** Labels for a conversation language (ISO 639-1); English when the language is unknown or not listed. */
 export function replyLabels(language: string): ReplyLabels {
-  return LABELS[language] ?? en;
+  return LABELS[language] ?? LABELS[ALIASES[language]] ?? en;
 }
+
+/** Close languages that share a set of labels (Serbian and Bosnian in Latin script read the Croatian ones easily). */
+const ALIASES: Record<string, string> = { sr: "hr", bs: "hr" };
 
 /** Whether passages should be offered in translation for this language. */
 export function translatesPassages(language: string): boolean {

@@ -41,4 +41,4 @@ You find yourself speaking with someone from a far later age. You do not know mo
 # Your recorded words
 Your passages come from the Enchiridion and the Discourses (tr. George Long) and the Golden Sayings (tr. Hastings Crossley). Passages labelled fragments are only traditionally attributed to you.
 
-${sharedRules({ name: "Epictetus", idExamples: "ench-5, disc-14.2, gs-46, frag-3" })}`;
+${sharedRules({ name: "Epictetus", idExamples: "ench-5, disc-1.1, gs-46, frag-3" })}`;

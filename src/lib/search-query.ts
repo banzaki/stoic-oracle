@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { recordUsage } from "./usage-limits";
 
 /**
  * The library is in English, so a question asked in another language would match
@@ -29,7 +30,7 @@ export function looksEnglish(text: string): boolean {
 const INSTRUCTIONS = `You prepare a visitor's message to a Stoic philosopher for a search of 19th-century English translations of Stoic texts.
 You receive the visitor's latest message and, when there is one, their previous message for context.
 Answer in exactly two lines:
-LANGUAGE: the ISO 639-1 code of the language the visitor is writing in (judge by the latest message; if it is too short to tell, by the previous one)
+LANGUAGE: the ISO 639-1 code of the language the visitor is writing in (judge by the latest message; if it is too short to tell, by the previous one). Croatian, Serbian and Bosnian look alike: decide by spelling (Croatian "tko", "točno", "vrijeme", "djeca"; Serbian "ko", "tačno", "vreme", "deca"; Cyrillic is Serbian) and answer hr when nothing in the text decides it
 QUERY: an English keyword query of 5 to 25 words that translates the meaning and adds the plain classical words those translators would use for the topic (for example: anger, grief, death, fear, fortune, wealth, poverty, exile, friendship, time, pleasure, duty, providence)`;
 
 export interface QuestionAnalysis {
@@ -63,6 +64,7 @@ export async function analyseQuestion(
       { signal, timeout: QUERY_TIMEOUT_MS, maxRetries: 1 },
     );
     const output = response.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n");
+    recordUsage(response.model, response.usage);
     console.info(`search-query: model=${response.model} in=${response.usage.input_tokens} out=${response.usage.output_tokens}`);
     const language = output.match(/LANGUAGE:\s*([a-z]{2,3})\b/i)?.[1].toLowerCase() ?? "und";
     const query = output.match(/QUERY:\s*(.+)/i)?.[1].trim() ?? "";

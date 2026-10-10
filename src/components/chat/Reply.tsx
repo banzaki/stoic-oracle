@@ -2,9 +2,12 @@
 
 import { Fragment, useMemo, useState } from "react";
 import type { SourcePassage } from "@/lib/corpus/types";
-import { replyLabels } from "@/lib/i18n";
+import type { Philosopher } from "@/lib/philosophers";
+import { replyLabels, translatesPassages, type ReplyLabels } from "@/lib/i18n";
 import { citedIds, segmentReply, type Segment } from "@/lib/quotes";
 import { References } from "./References";
+import { ReplyActions } from "./ReplyActions";
+import { usePassageTranslation } from "./use-passage-translation";
 
 interface ReplyProps {
   text: string;
@@ -16,6 +19,45 @@ interface ReplyProps {
   replyId: string;
   /** ISO 639-1 code of the conversation's language. */
   language: string;
+  /** Who is speaking; enables copying and sharing the finished reply. */
+  speaker?: Philosopher;
+}
+
+/**
+ * A verified quotation the philosopher left in English in a conversation in another language:
+ * the excerpt is translated on demand and shown like any translated quotation, original in the tooltip.
+ */
+function EnglishQuoteInTranslation({
+  text,
+  passageId,
+  refLabel,
+  language,
+  labels,
+}: {
+  text: string;
+  passageId: string;
+  refLabel: string;
+  language: string;
+  labels: ReplyLabels;
+}) {
+  const translation = usePassageTranslation(passageId, language, text);
+  const translated = translation.status === "done";
+  const note = translated ? labels.verifiedTranslated(refLabel) : labels.verified(refLabel);
+  return (
+    <>
+      <q
+        lang={translated ? language : "en"}
+        className="border-b border-gold/40 text-gold-bright before:content-['“'] after:content-['”']"
+        title={translated ? `${note}
+“${text}”` : note}
+      >
+        {translated ? translation.text.replace(/^[“"«„]|[”"»“]$/g, "") : text}
+      </q>
+      <span aria-label={note} className="ml-0.5 whitespace-nowrap align-super font-sans text-[0.6em] text-gold">
+        ✓{translated && labels.translatedMark ? ` ${labels.translatedMark}` : ""}
+      </span>
+    </>
+  );
 }
 
 function Emphasis({ text }: { text: string }) {
@@ -27,7 +69,7 @@ function Emphasis({ text }: { text: string }) {
   );
 }
 
-export function Reply({ text, streaming, sources, knownSources, replyId, language }: ReplyProps) {
+export function Reply({ text, streaming, sources, knownSources, replyId, language, speaker }: ReplyProps) {
   const labels = replyLabels(language);
   const [referencesOpen, setReferencesOpen] = useState(false);
   // The source the visitor asked to see by clicking a footnote number.
@@ -90,6 +132,18 @@ export function Reply({ text, streaming, sources, knownSources, replyId, languag
       case "quote": {
         const ref = segment.verifiedIn ? (knownSources.get(segment.verifiedIn)?.ref ?? segment.verifiedIn) : "";
         const original = segment.original ? `\n“${segment.original}”` : "";
+        if (segment.verifiedIn && !segment.original && !streaming && translatesPassages(language)) {
+          return (
+            <EnglishQuoteInTranslation
+              key={key}
+              text={segment.text}
+              passageId={segment.verifiedIn}
+              refLabel={ref}
+              language={language}
+              labels={labels}
+            />
+          );
+        }
         if (segment.verifiedIn) {
           const note = segment.original ? labels.verifiedTranslated(ref) : labels.verified(ref);
           return (
@@ -136,6 +190,11 @@ export function Reply({ text, streaming, sources, knownSources, replyId, languag
         ))}
       </div>
 
+      {!streaming && speaker && cited.length === 0 && consulted.length === 0 && (
+        <div className="mt-5 flex justify-end">
+          <ReplyActions speaker={speaker} text={text} knownSources={knownSources} />
+        </div>
+      )}
       {!streaming && (cited.length > 0 || consulted.length > 0) && (
         <References
           replyId={replyId}
@@ -146,6 +205,7 @@ export function Reply({ text, streaming, sources, knownSources, replyId, languag
           open={referencesOpen}
           onToggle={() => setReferencesOpen((v) => !v)}
           focus={focus}
+          actions={speaker && <ReplyActions speaker={speaker} text={text} knownSources={knownSources} />}
         />
       )}
     </div>

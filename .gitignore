@@ -47,3 +47,9 @@ next-env.d.ts
 /library/*.png
 /library/*.zip
 /image.png
+
+# OCR scans of the Fronto correspondence: kept locally, not used until a clean text is available
+/library/correspondenceof*.epub
+
+# results of npm run eval
+/eval-results/

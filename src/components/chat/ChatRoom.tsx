@@ -8,11 +8,14 @@ import type { Philosopher } from "@/lib/philosophers";
 import { LaurelDivider } from "../Laurel";
 import { Portrait } from "../Portrait";
 import { Composer } from "./Composer";
+import { ConversationMenu } from "./ConversationMenu";
+import { conversationAsMarkdown, downloadFile } from "./export";
 import { LatestButton } from "./LatestButton";
 import { ErrorNotice } from "./ErrorNotice";
 import { readEvents } from "./read-events";
 import { ReadingGuide } from "./ReadingGuide";
 import { Reply } from "./Reply";
+import { forget, save, useSaved } from "./saved-conversation";
 import { useFollowScroll } from "./use-follow-scroll";
 
 interface Turn {
@@ -44,7 +47,13 @@ function buildHistory(turns: Turn[], question: string): ChatRequest["messages"] 
 }
 
 export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
+  // A saved conversation remounts the room with it, once the page has hydrated.
+  const saved = useSaved<Turn[]>(`chat:${philosopher.id}`);
+  return <Conversation key={saved ? "restored" : "new"} philosopher={philosopher} initialTurns={saved ?? []} />;
+}
+
+function Conversation({ philosopher, initialTurns }: { philosopher: Philosopher; initialTurns: Turn[] }) {
+  const [turns, setTurns] = useState<Turn[]>(initialTurns);
   const [busy, setBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -61,6 +70,25 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
   const { detached, jumpToLatest, follow } = useFollowScroll(progress);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // The conversation survives a reload: saved whenever no reply is being written.
+  const storageKey = `chat:${philosopher.id}`;
+  useEffect(() => {
+    if (!busy && turns.length) save(storageKey, turns.filter((t) => t.status !== "streaming"));
+  }, [busy, turns, storageKey]);
+
+  function startOver() {
+    abortRef.current?.abort();
+    forget(storageKey);
+    setTurns([]);
+    window.scrollTo({ top: 0 });
+  }
+
+  function exportConversation() {
+    const entries = turns.map((t) => ({ speaker: t.role === "user" ? "You" : philosopher.name, content: t.content }));
+    const markdown = conversationAsMarkdown(`A conversation with ${philosopher.name}`, entries, knownSources);
+    downloadFile(`stoic-oracle-${philosopher.id}-${new Date().toISOString().slice(0, 10)}.md`, markdown);
+  }
 
   const updateTurn = (id: string, patch: (t: Turn) => Partial<Turn>) =>
     setTurns((all) => all.map((t) => (t.id === id ? { ...t, ...patch(t) } : t)));
@@ -157,13 +185,16 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
               {philosopher.lifespan} · {philosopher.role}
             </p>
           </div>
+          <ConversationMenu disabled={empty || busy} onNew={startOver} onExport={exportConversation} />
           <button
             type="button"
             onClick={() => setShowGuide((v) => !v)}
             className="shrink-0 rounded-full border border-gold/30 px-3 py-1 text-xs text-stone transition hover:border-gold/60 hover:text-gold-bright"
             aria-expanded={showGuide}
+            aria-label="How to read"
           >
-            How to read
+            <span aria-hidden="true" className="sm:hidden">?</span>
+            <span aria-hidden="true" className="hidden sm:inline">How to read</span>
           </button>
         </div>
         {showGuide && <ReadingGuide name={philosopher.name} />}
@@ -220,6 +251,7 @@ export function ChatRoom({ philosopher }: { philosopher: Philosopher }) {
                     streaming={turn.status === "streaming"}
                     sources={turn.sources ?? []}
                     knownSources={knownSources}
+                    speaker={philosopher}
                     language={turn.language ?? "en"}
                   />
                 )}

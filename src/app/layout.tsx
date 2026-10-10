@@ -20,9 +20,15 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+const description = "Converse with Marcus Aurelius, Seneca and Epictetus, grounded in their own words.";
+
 export const metadata: Metadata = {
+  // Absolute URLs for the share images; on Vercel the production URL is used when SITE_URL is unset.
+  metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : undefined,
   title: "Stoic Oracle",
-  description: "Converse with Marcus Aurelius, Seneca and Epictetus, grounded in their own words.",
+  description,
+  openGraph: { title: "Stoic Oracle", description, siteName: "Stoic Oracle", type: "website" },
+  twitter: { card: "summary_large_image", title: "Stoic Oracle", description },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

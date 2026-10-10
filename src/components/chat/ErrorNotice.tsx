@@ -16,6 +16,16 @@ export function ErrorNotice({ error }: { error: { code: string; message: string 
       </div>
     );
   }
+  if (error.code === "daily_limit" || error.code === "visitor_limit") {
+    return (
+      <div className="mt-3 rounded-xl border border-gold/25 bg-umber/80 p-5 text-sm leading-relaxed text-stone">
+        <p className="font-display text-xl text-parchment">
+          {error.code === "daily_limit" ? "The oracle rests." : "A pause for reflection."}
+        </p>
+        <p className="mt-2">{error.message}</p>
+      </div>
+    );
+  }
   return (
     <p className="mt-3 rounded-lg border border-ember/30 bg-ember/5 px-4 py-2 text-sm text-ember">{error.message}</p>
   );

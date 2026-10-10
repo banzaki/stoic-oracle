@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import type { SourcePassage } from "@/lib/corpus/types";
 import { replyLabels, translatesPassages } from "@/lib/i18n";
 import { SourceCard } from "./SourceCard";
@@ -17,6 +17,8 @@ interface ReferencesProps {
   onToggle: () => void;
   /** A footnote the visitor clicked: scrolled into view and highlighted. */
   focus: { id: string; at: number } | null;
+  /** Shown at the right of the summary line (e.g. copy / share). */
+  actions?: ReactNode;
 }
 
 /**
@@ -24,7 +26,17 @@ interface ReferencesProps {
  * Cited passages come first; passages that were only consulted sit in their own fold.
  * Cards mount only when shown, so translations are requested only for what is read.
  */
-export function References({ replyId, cited, numbers, consulted, language, open, onToggle, focus }: ReferencesProps) {
+export function References({
+  replyId,
+  cited,
+  numbers,
+  consulted,
+  language,
+  open,
+  onToggle,
+  focus,
+  actions,
+}: ReferencesProps) {
   const labels = replyLabels(language);
   const panelId = useId();
   const consultedId = useId();
@@ -41,18 +53,21 @@ export function References({ replyId, cited, numbers, consulted, language, open,
 
   return (
     <div className="mt-5">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-controls={panelId}
-        className="group inline-flex items-center gap-2 rounded-full py-1 pr-2 text-sm text-dust transition hover:text-gold"
-      >
-        <span aria-hidden="true" className={`inline-block text-gold/70 transition ${open ? "rotate-90" : ""}`}>
-          ›
-        </span>
-        <span className="border-b border-transparent group-hover:border-gold/40">{summary}</span>
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="group inline-flex items-center gap-2 rounded-full py-1 pr-2 text-sm text-dust transition hover:text-gold"
+        >
+          <span aria-hidden="true" className={`inline-block text-gold/70 transition ${open ? "rotate-90" : ""}`}>
+            ›
+          </span>
+          <span className="border-b border-transparent group-hover:border-gold/40">{summary}</span>
+        </button>
+        {actions}
+      </div>
 
       {open && (
         <div id={panelId} className="animate-rise mt-3 space-y-3">

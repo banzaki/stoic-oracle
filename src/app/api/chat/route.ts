@@ -11,6 +11,7 @@ import {
 } from "@/lib/oracle";
 import { SYSTEM_PROMPTS } from "@/lib/personas";
 import { isPhilosopherId } from "@/lib/philosophers";
+import { checkLimits } from "@/lib/usage-limits";
 
 // Ceiling on output per reply (thinking included); replies are meant to be short.
 const MAX_OUTPUT_TOKENS = 3000;
@@ -57,6 +58,9 @@ export async function POST(request: Request) {
   }
   const chat = parseRequest(body);
   if (!chat) return jsonError(400, "bad_request", "Invalid conversation format.");
+
+  const refusal = checkLimits(request, "reply");
+  if (refusal) return jsonError(refusal.status, refusal.code, refusal.message);
 
   const client = new Anthropic();
   const encoder = new TextEncoder();
