@@ -11,12 +11,15 @@ import {
 } from "@/lib/oracle";
 import { SYSTEM_PROMPTS } from "@/lib/personas";
 import { isPhilosopherId } from "@/lib/philosophers";
-import { checkLimits } from "@/lib/usage-limits";
+import { admit, isRefusal, refusalResponse } from "@/lib/usage-limits";
 
 // Ceiling on output per reply (thinking included); replies are meant to be short.
 const MAX_OUTPUT_TOKENS = 3000;
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_MESSAGE_CHARS = 4000;
+// Oldest exchanges are dropped beyond this, which also bounds the cost estimate per reply.
+const MAX_HISTORY_CHARS = 24_000;
+const MAX_BODY_BYTES = 120_000;
 
 export const maxDuration = 120;
 
@@ -38,7 +41,11 @@ function parseRequest(body: unknown): ChatRequest | null {
     clean.push({ role, content: text });
   }
   if (clean[clean.length - 1].role !== "user") return null;
-  return { philosopher, messages: clean.slice(-MAX_HISTORY_MESSAGES) };
+  const kept = clean.slice(-MAX_HISTORY_MESSAGES);
+  while (kept.length > 1 && kept.reduce((n, m) => n + m.content.length, 0) > MAX_HISTORY_CHARS) kept.shift();
+  // The history must still open with the visitor.
+  while (kept.length > 1 && kept[0].role !== "user") kept.shift();
+  return { philosopher, messages: kept };
 }
 
 export async function POST(request: Request) {
@@ -50,6 +57,10 @@ export async function POST(request: Request) {
     );
   }
 
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
+    return jsonError(413, "too_large", "The conversation is too long to send.");
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -59,13 +70,14 @@ export async function POST(request: Request) {
   const chat = parseRequest(body);
   if (!chat) return jsonError(400, "bad_request", "Invalid conversation format.");
 
-  const refusal = checkLimits(request, "reply");
-  if (refusal) return jsonError(refusal.status, refusal.code, refusal.message);
+  const admission = await admit(request, "reply");
+  if (isRefusal(admission)) return refusalResponse(admission);
 
   const client = new Anthropic();
   const encoder = new TextEncoder();
 
-  const stream = new ReadableStream<Uint8Array>({
+  // Created inside the admission so the cost of every model call below is measured.
+  const stream = admission.run(() => new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: StreamEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
 
@@ -118,15 +130,17 @@ export async function POST(request: Request) {
         // A visitor who closed the page or pressed Stop needs no report.
         if (!request.signal.aborted) send({ type: "error", ...describeError(error) });
       } finally {
-        controller.close();
+        await admission.settle();
+        try {
+          controller.close();
+        } catch {
+          // Already closed: the visitor went away.
+        }
       }
     },
-  });
+  }));
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
+  const headers = new Headers({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" });
+  if (admission.setCookie) headers.append("Set-Cookie", admission.setCookie);
+  return new Response(stream, { headers });
 }

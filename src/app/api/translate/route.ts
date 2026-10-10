@@ -3,7 +3,7 @@ import { findPassage, toSourcePassage } from "@/lib/corpus";
 import { describeError, EFFORT, MODEL } from "@/lib/oracle";
 import { getPhilosopher } from "@/lib/philosophers";
 import { findQuoteSource } from "@/lib/quotes";
-import { checkLimits, recordUsage } from "@/lib/usage-limits";
+import { admit, isRefusal, recordUsage, refusalResponse } from "@/lib/usage-limits";
 
 /**
  * Translates one library passage into the visitor's language, on demand: the browser asks
@@ -56,12 +56,16 @@ export async function POST(request: Request) {
   const cached = cache.get(key);
   if (cached) return Response.json({ translation: cached });
 
-  const refusal = checkLimits(request, "translation");
-  if (refusal) return jsonError(refusal.status, refusal.code, refusal.message);
+  const admission = await admit(request, "translation");
+  if (isRefusal(admission)) return refusalResponse(admission);
 
   const passage = toSourcePassage(found.passage);
+  const withCookie = (response: Response) => {
+    if (admission.setCookie) response.headers.append("Set-Cookie", admission.setCookie);
+    return response;
+  };
   try {
-    const response = await new Anthropic().messages.create(
+    const response = await admission.run(() => new Anthropic().messages.create(
       {
         model: MODEL,
         max_tokens: MAX_OUTPUT_TOKENS,
@@ -85,21 +89,23 @@ ${excerpt}
         ],
       },
       { signal: request.signal },
-    );
+    ));
     const translation = response.content
       .flatMap((block) => (block.type === "text" ? [block.text] : []))
       .join("")
       .trim();
-    recordUsage(response.model, response.usage);
+    admission.run(() => recordUsage(response.model, response.usage));
     console.info(`translate[${language}:${id}]: model=${response.model} in=${response.usage.input_tokens} out=${response.usage.output_tokens}`);
     if (!translation || response.stop_reason === "max_tokens") {
-      return jsonError(502, "translation_failed", "The translation could not be completed.");
+      return withCookie(jsonError(502, "translation_failed", "The translation could not be completed."));
     }
     if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
     cache.set(key, translation);
-    return Response.json({ translation });
+    return withCookie(Response.json({ translation }));
   } catch (error) {
     const { code, message } = describeError(error);
-    return jsonError(502, code, message);
+    return withCookie(jsonError(502, code, message));
+  } finally {
+    await admission.settle();
   }
 }

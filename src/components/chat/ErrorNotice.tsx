@@ -16,12 +16,17 @@ export function ErrorNotice({ error }: { error: { code: string; message: string 
       </div>
     );
   }
-  if (error.code === "daily_limit" || error.code === "visitor_limit") {
+  const restingTitles: Record<string, string> = {
+    daily_limit: "The oracle rests.",
+    visitor_limit: "A pause for reflection.",
+    council_limit: "The council has risen for today.",
+    paused: "The oracle rests.",
+    unavailable: "The oracle is silent.",
+  };
+  if (error.code in restingTitles) {
     return (
       <div className="mt-3 rounded-xl border border-gold/25 bg-umber/80 p-5 text-sm leading-relaxed text-stone">
-        <p className="font-display text-xl text-parchment">
-          {error.code === "daily_limit" ? "The oracle rests." : "A pause for reflection."}
-        </p>
+        <p className="font-display text-xl text-parchment">{restingTitles[error.code]}</p>
         <p className="mt-2">{error.message}</p>
       </div>
     );

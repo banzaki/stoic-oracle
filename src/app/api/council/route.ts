@@ -12,7 +12,7 @@ import {
 } from "@/lib/oracle";
 import { SYSTEM_PROMPTS } from "@/lib/personas";
 import { getPhilosopher, isPhilosopherId, type PhilosopherId } from "@/lib/philosophers";
-import { checkLimits } from "@/lib/usage-limits";
+import { admit, isRefusal, refusalResponse } from "@/lib/usage-limits";
 
 // Each speaker gives a short contribution, so the ceiling is lower than in a private conversation.
 const MAX_OUTPUT_TOKENS = 1500;
@@ -20,6 +20,7 @@ const MAX_ROUNDS_IN_CONTEXT = 3;
 const MAX_QUESTION_CHARS = 4000;
 const MAX_REPLY_CHARS = 3000;
 const PASSAGES_PER_SPEAKER = 6;
+const MAX_BODY_BYTES = 120_000;
 /** Speaking order when the request names none. */
 const DEFAULT_ORDER: PhilosopherId[] = ["epictetus", "seneca", "marcus-aurelius"];
 
@@ -104,6 +105,10 @@ export async function POST(request: Request) {
     );
   }
 
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
+    return jsonError(413, "too_large", "The council transcript is too long to send.");
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -116,13 +121,15 @@ export async function POST(request: Request) {
   // The visitor's chosen lineup, in their chosen order.
   const order = council.speakers ?? DEFAULT_ORDER;
 
-  const refusal = checkLimits(request, "reply", order.length);
-  if (refusal) return jsonError(refusal.status, refusal.code, refusal.message);
+  // A Council question counts one reply per speaker, and one Council question.
+  const admission = await admit(request, "council", order.length);
+  if (isRefusal(admission)) return refusalResponse(admission);
 
   const client = new Anthropic();
   const encoder = new TextEncoder();
 
-  const stream = new ReadableStream<Uint8Array>({
+  // Created inside the admission so the cost of every model call below is measured.
+  const stream = admission.run(() => new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: CouncilEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
 
@@ -191,15 +198,17 @@ export async function POST(request: Request) {
       } catch (error) {
         if (!request.signal.aborted) send({ type: "error", ...describeError(error) });
       } finally {
-        controller.close();
+        await admission.settle();
+        try {
+          controller.close();
+        } catch {
+          // Already closed: the visitor went away.
+        }
       }
     },
-  });
+  }));
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
+  const headers = new Headers({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" });
+  if (admission.setCookie) headers.append("Set-Cookie", admission.setCookie);
+  return new Response(stream, { headers });
 }

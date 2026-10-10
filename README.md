@@ -30,7 +30,20 @@ npm run dev
 
 Open http://localhost:3000.
 
-To limit spending on a public deployment, the server keeps a daily budget (`DAILY_BUDGET_USD`, default US$2, estimated from token usage) and a per-visitor allowance (`REPLIES_PER_VISITOR_HOUR`, default 30); see `.env.example`. The counters live in the server's memory, so on serverless hosting they should move to a shared store, and a monthly spend limit in the Anthropic Console should be set as the hard ceiling.
+### Spending guard
+
+Every model route reserves its share before calling the API, atomically, in one Redis script (`src/lib/usage-limits.ts`): a conservative cost estimate against the global daily budget, and the visitor's allowance. When the request ends, the estimate is replaced by the cost measured from the real token usage. Defaults (all configurable, see `.env.example`):
+
+| Limit | Default |
+| --- | --- |
+| Global budget | US$2 per UTC day |
+| Replies per visitor | 6 per hour, 10 per day (a Council question counts one per speaker) |
+| Council questions per visitor | 2 per day |
+| Passage translations per visitor | 20 per hour, 60 per day |
+
+A visitor is a random cookie and, separately, the IP address (with twice the allowance, since addresses are shared); both are stored only as salted hashes. Neither identifies a person reliably: the global budget is the real ceiling, and a monthly spend limit in the Anthropic Console should be set as the last one.
+
+On Vercel the counters live in Upstash Redis; without it, or if it cannot be reached, the model routes refuse to run. Locally they fall back to process memory. To stop all model calls at once: `npm run oracle -- pause` (and `resume`; `status` shows today's spending), or set `ORACLE_PAUSED=1` and redeploy.
 
 Without `ANTHROPIC_API_KEY` the site still opens, but the chat shows a "The oracle is silent" notice explaining how to configure the key. No reply is ever simulated. The key is read only by the server routes (`src/app/api/`); it is never sent to the browser.
 
@@ -63,6 +76,7 @@ Without `ANTHROPIC_API_KEY` the site still opens, but the chat shows a "The orac
 | `npm run build` / `npm start` | Production build / server |
 | `npm run corpus` | Rebuild `data/corpus/*.json` from `library/` |
 | `npm run lint` | ESLint |
+| `npm run oracle -- status|pause|resume` | Emergency switch for the public site (needs the Redis credentials, e.g. from `vercel env pull .env.production.local`) |
 | `npm run eval` | Regression suite: real conversations against a running server (`BASE_URL`, default `http://localhost:3000`), checked for verified quotations, valid citations, language, self-address, length and Council order. Costs about US$0.40 per run. |
 
 ## Library and licences

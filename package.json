@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "corpus": "tsx scripts/build-corpus.ts",
-    "eval": "tsx scripts/eval.ts"
+    "eval": "tsx scripts/eval.ts",
+    "oracle": "tsx scripts/oracle-switch.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
+    "@upstash/redis": "^1.39.0",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
