@@ -76,7 +76,7 @@ Without `ANTHROPIC_API_KEY` the site still opens, but the chat shows a "The orac
 | `npm run build` / `npm start` | Production build / server |
 | `npm run corpus` | Rebuild `data/corpus/*.json` from `library/` |
 | `npm run lint` | ESLint |
-| `npm run oracle -- status|pause|resume` | Emergency switch for the public site (needs the Redis credentials, e.g. from `vercel env pull .env.production.local`) |
+| `npm run oracle -- status|pause|resume` | Emergency switch for the public site (needs the Redis credentials, e.g. from `vercel env pull .env.vercel-production`) |
 | `npm run eval` | Regression suite: real conversations against a running server (`BASE_URL`, default `http://localhost:3000`), checked for verified quotations, valid citations, language, self-address, length and Council order. Costs about US$0.40 per run. |
 
 ## Library and licences

@@ -5,8 +5,8 @@
  *   npm run oracle -- pause     # every model route refuses at once (no redeploy needed)
  *   npm run oracle -- resume
  *
- * Reads the Redis credentials from the environment or from .env.production.local
- * (created by `vercel env pull .env.production.local`).
+ * Reads the Redis credentials from the environment or from .env.vercel-production
+ * (created by `vercel env pull .env.vercel-production`).
  */
 import { readFileSync } from "node:fs";
 import { Redis } from "@upstash/redis";
@@ -22,12 +22,12 @@ function loadEnvFile(file: string) {
   }
 }
 
-loadEnvFile(".env.production.local");
+loadEnvFile(".env.vercel-production");
 
 const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
 if (!url || !token) {
-  console.error("No Redis credentials. Run `npx vercel env pull .env.production.local` first.");
+  console.error("No Redis credentials. Run `npx vercel env pull .env.vercel-production` first.");
   process.exit(1);
 }
 const redis = new Redis({ url, token, automaticDeserialization: false });
