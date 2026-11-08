@@ -1,5 +1,10 @@
 # Stoic Oracle
 
+![Stoic Oracle project preview](src/app/opengraph-image.png)
+
+[![CI](https://github.com/banzaki/stoic-oracle/actions/workflows/ci.yml/badge.svg)](https://github.com/banzaki/stoic-oracle/actions/workflows/ci.yml)
+
+
 Converse with **Marcus Aurelius**, **Seneca** and **Epictetus** — AI portrayals grounded in their own writings, with every quotation checked against the library and traced to its source.
 
 **Live:** [stoic-oracle-eosin.vercel.app](https://stoic-oracle-eosin.vercel.app)
