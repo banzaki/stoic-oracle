@@ -4,6 +4,21 @@ Converse with **Marcus Aurelius**, **Seneca** and **Epictetus** — AI portrayal
 
 **Live:** [stoic-oracle-eosin.vercel.app](https://stoic-oracle-eosin.vercel.app)
 
+## At a glance
+
+| | |
+| --- | --- |
+| **Problem** | Make ancient Stoic writings accessible through conversation without passing AI-generated wording off as historical quotation. |
+| **Solution** | Retrieval from cited editions, multi-persona AI responses, and a separate quotation-verification layer. |
+| **Engineering** | Next.js + TypeScript, BM25 retrieval and semantic re-ranking, server-side AI integration, Redis-based usage and cost limits. |
+| **Try it** | [Open the live demo](https://stoic-oracle-eosin.vercel.app) |
+| **Understand it** | See [How it works](#how-it-works), [Running locally](#running-locally), and [Scripts](#scripts). |
+
+**Implementation notes:** The app distinguishes retrieved text, verified quotations, translations, and AI interpretation. Its production model routes depend on server-side credentials and a shared spending guard; a failed guard refuses model calls rather than silently bypassing limits.
+
+**Testing and limitations:** The repository documents an evaluation script for regression scenarios. This is not a claim of comprehensive test coverage or independent security certification. The live demo can limit requests when usage allowances or the global API budget have been reached.
+
+
 - **Three distinct voices.** The emperor writing to himself at night, the eloquent statesman who admits his contradictions, the blunt freedman of the schoolroom. Each has a permanent character and convictions that do not bend to flattery or provocation.
 - **Grounded in the texts.** Every reply is built on passages retrieved from public-domain translations of the philosopher's own works, cited as numbered footnotes with the full passage underneath.
 - **Authentic vs. interpretive, visibly.** Quotations found word for word in the cited passage are shown in gold with ✓; quotations attributed to the library that do not match are marked ≈ as paraphrase. Everything else is labelled as AI portrayal.
